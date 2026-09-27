@@ -11,6 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import lockfile from "proper-lockfile";
 import {
   GLOBAL_LOCKS_DIR,
   ensureGlobalDirs,
@@ -128,10 +129,21 @@ function claimTtlMs(): number {
 /** A claim file being written is unreadable for a moment; do not destroy it. */
 const UNREADABLE_GRACE_MS = 5_000;
 
+/** proper-lockfile's minimum; a guard held longer than this belongs to a dead process. */
+const GUARD_STALE_MS = 5000;
+/** How long a caller waits on a contended guard before reporting the port busy. */
+const GUARD_WAIT_MS = 2000;
+const GUARD_POLL_MS = 10;
+
+/** Blocking sleep for the synchronous claim API; the wait is bounded by GUARD_WAIT_MS. */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 type ClaimFileState =
   | { kind: "absent" }
-  | { kind: "ok"; claim: PortClaim }
-  | { kind: "unreadable"; ageMs: number }
+  | { kind: "ok"; claim: PortClaim; raw: string }
+  | { kind: "unreadable"; ageMs: number; raw: string }
   | { kind: "denied"; errno: string };
 
 /**
@@ -151,6 +163,58 @@ export class SemaphoreManager {
       SemaphoreManager.instance = new SemaphoreManager();
     }
     return SemaphoreManager.instance;
+  }
+
+  /**
+   * Serialises every mutation of one port's claim file across processes.
+   *
+   * The claim file itself is published with link()/rename(), which are
+   * atomic, but a classify-then-act pair (`releasePort`'s read and unlink,
+   * `claimPort`'s stale check and republish) is two syscalls, and a
+   * replacement claim published between them would be acted on under the
+   * old claim's authority. The guard closes that window. It is a
+   * proper-lockfile directory beside the claim file, chosen over the reclaim
+   * breaker because it is crash-safe: a lock left by a dead process goes
+   * stale after GUARD_STALE_MS and is taken over, so the highest-frequency
+   * cleanup path in this file cannot wedge a port. Contention is brief (the
+   * critical sections are a handful of syscalls), so callers spin for at most
+   * GUARD_WAIT_MS before reporting the port busy.
+   */
+  private withPortGuard<T>(port: string, filePath: string, fn: () => T): T {
+    const guard = `${filePath}.guard`;
+    const deadline = Date.now() + GUARD_WAIT_MS;
+    let release: () => void;
+    for (;;) {
+      try {
+        release = lockfile.lockSync(guard, {
+          realpath: false,
+          stale: GUARD_STALE_MS,
+        });
+        break;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "ELOCKED") {
+          throw new ClaimIoError("lock", guard, error as NodeJS.ErrnoException);
+        }
+        if (Date.now() >= deadline) {
+          throw new PortBusyError(
+            port,
+            this.getClaim(port),
+            `Port ${port}'s claim is being updated by another process right now.`,
+          );
+        }
+        sleepSync(GUARD_POLL_MS);
+      }
+    }
+    try {
+      return fn();
+    } finally {
+      try {
+        release();
+      } catch {
+        // A compromised or already-released guard is not the caller's failure.
+      }
+    }
   }
 
   private getLockFilePath(port: string): string {
@@ -183,26 +247,31 @@ export class SemaphoreManager {
       2,
     );
 
-    if (this.tryCreateExclusive(filePath, content)) return claim;
+    return this.withPortGuard(port, filePath, () => {
+      if (this.tryCreateExclusive(filePath, content)) return claim;
 
-    if (this.evaluateExisting(filePath, port) === "reentrant") {
-      this.replaceClaimAtomically(filePath, this.refreshedContent(port, claim));
-      return claim;
-    }
-
-    // Reclaimable. Serialise the unlink+create so two reclaimers cannot both win.
-    return this.withReclaimBreaker(port, filePath, () => {
-      const recheck = this.evaluateExisting(filePath, port);
-      if (recheck === "reentrant") {
+      if (this.evaluateExisting(filePath, port) === "reentrant") {
         this.replaceClaimAtomically(
           filePath,
           this.refreshedContent(port, claim),
         );
         return claim;
       }
-      if (recheck === "reclaim") fs.rmSync(filePath, { force: true });
-      if (this.tryCreateExclusive(filePath, content)) return claim;
-      throw new PortBusyError(port, this.getClaim(port));
+
+      // Reclaimable. Serialise the unlink+create so two reclaimers cannot both win.
+      return this.withReclaimBreaker(port, filePath, () => {
+        const recheck = this.evaluateExisting(filePath, port);
+        if (recheck === "reentrant") {
+          this.replaceClaimAtomically(
+            filePath,
+            this.refreshedContent(port, claim),
+          );
+          return claim;
+        }
+        if (recheck === "reclaim") fs.rmSync(filePath, { force: true });
+        if (this.tryCreateExclusive(filePath, content)) return claim;
+        throw new PortBusyError(port, this.getClaim(port));
+      });
     });
   }
 
@@ -353,7 +422,7 @@ export class SemaphoreManager {
     try {
       const parsed = JSON.parse(raw);
       const claim = this.normaliseClaim(parsed.current_claim ?? parsed, port);
-      if (claim) return { kind: "ok", claim };
+      if (claim) return { kind: "ok", claim, raw };
     } catch {
       // Fall through: corrupt or mid-write.
     }
@@ -363,7 +432,7 @@ export class SemaphoreManager {
     } catch {
       // Vanished underneath us; treat as old so it can be reclaimed.
     }
-    return { kind: "unreadable", ageMs };
+    return { kind: "unreadable", ageMs, raw };
   }
 
   private normaliseClaim(raw: any, port: string): PortClaim | null {
@@ -449,12 +518,18 @@ export class SemaphoreManager {
     // mutation in this class is ownership- or breaker-guarded; so is this.
     if (!this.isOwnedByThisProcess(claim)) return false;
     try {
-      const updated: PortClaim = { ...claim, monitor_pid: monitorPid };
-      this.replaceClaimAtomically(
-        filePath,
-        JSON.stringify({ status: "busy", current_claim: updated }, null, 2),
-      );
-      return true;
+      return this.withPortGuard(port, filePath, () => {
+        // Re-read under the guard: the claim checked above may have been
+        // released and republished by another process in the meantime.
+        const current = this.getClaim(port);
+        if (!current || !this.isOwnedByThisProcess(current)) return false;
+        const updated: PortClaim = { ...current, monitor_pid: monitorPid };
+        this.replaceClaimAtomically(
+          filePath,
+          JSON.stringify({ status: "busy", current_claim: updated }, null, 2),
+        );
+        return true;
+      });
     } catch {
       return false;
     }
@@ -499,67 +574,83 @@ export class SemaphoreManager {
    * under the wrong type's authority (check-then-act). Returns true if a claim
    * was removed.
    *
-   * Known, accepted ABA: classify and unlink below are two syscalls, not one.
-   * A `claimPort` reclaim that wins the reclaim breaker and republishes a
-   * fresh claim in that window has its fresh claim deleted here. This is not
-   * closed by taking `withReclaimBreaker` in this method too, deliberately:
+   * Classify and unlink are two syscalls, so on their own a replacement claim
+   * published between them (a reclaim that won, a fresh claim after another
+   * releaser cleared the file) would be deleted under the OLD claim's
+   * authority, freeing a port some process believes it holds. Two things
+   * close that:
    *
-   * - `withReclaimBreaker` has no auto-recovery by design (see its doc
-   *   comment) — an abandoned breaker wedges the port until `port release`
-   *   clears it. `releasePort` runs on the cleanup path of every upload and
-   *   every monitor stop, i.e. the highest-frequency path in this file. Put a
-   *   wedge-on-crash primitive there and one crash mid-release outweighs the
-   *   race it would close.
-   * - It would also deadlock its own recovery: the sanctioned way to clear an
-   *   abandoned breaker is `pio-agent port release`, which *is* this method.
-   *   Requiring the breaker to release a claim makes recovery unreachable by
-   *   the exact path meant to perform it.
-   * - All four call sites (`monitor.ts`'s two releases, `spooler.ts`'s two)
-   *   swallow exceptions from this method, so the `PortBusyError` taking the
-   *   breaker would raise on contention is unobservable anyway — it would
-   *   silently degrade to "claim not released" with no visible signal.
-   * - The bound on the accepted window: `releasePort` never creates or
-   *   publishes anything, only removes. The worst case is a deleted claim
-   *   file — a `claimPort` caller that loses its fresh claim gets a spurious
-   *   free retry — not two processes both believing they hold the port,
-   *   which is the failure this class exists to prevent.
+   * - The whole method runs under the per-port guard, which every publish
+   *   path also takes, so no cooperating process can replace the file while
+   *   this one is between its read and its unlink.
+   * - The unlink is conditional on the claim bytes being exactly what was
+   *   classified. Anything else on disk -- a different claim, a file that
+   *   vanished -- is left alone and reported as "not released". This also
+   *   covers writers that bypass the guard (an admin reset, a legacy
+   *   version of this tool sharing the directory).
+   *
+   * The guard is proper-lockfile rather than the reclaim breaker on purpose:
+   * the breaker has no auto-recovery, and this method is the cleanup path of
+   * every upload and every monitor stop, so a crash mid-release must not
+   * wedge the port. The breaker still exists for the same reason it always
+   * did -- to make an abandoned reclaim visible -- and `port release` still
+   * clears it.
    */
   public releasePort(
     port: string,
     options: { force?: boolean; expectedType?: PortClaimType } = {},
   ): boolean {
     const filePath = this.getLockFilePath(port);
-    const state = this.classifyClaimFile(filePath, port);
+    return this.withPortGuard(port, filePath, () => {
+      const state = this.classifyClaimFile(filePath, port);
 
-    if (state.kind === "absent") return false;
-    if (state.kind === "denied") return false;
+      if (state.kind === "absent") return false;
+      if (state.kind === "denied") return false;
 
-    if (state.kind === "unreadable") {
-      // A file mid-write is unreadable for milliseconds; only an old unreadable
-      // file is genuinely abandoned. An expectedType cannot be confirmed on an
-      // unreadable file, so refuse when one was required.
-      if (options.expectedType) return false;
-      if (state.ageMs < UNREADABLE_GRACE_MS) return false;
-      return this.unlinkClaim(filePath);
-    }
+      if (state.kind === "unreadable") {
+        // A file mid-write is unreadable for milliseconds; only an old unreadable
+        // file is genuinely abandoned. An expectedType cannot be confirmed on an
+        // unreadable file, so refuse when one was required.
+        if (options.expectedType) return false;
+        if (state.ageMs < UNREADABLE_GRACE_MS) return false;
+        return this.unlinkClaimIfUnchanged(filePath, state.raw);
+      }
 
-    if (options.expectedType && state.claim.type !== options.expectedType) {
+      if (options.expectedType && state.claim.type !== options.expectedType) {
+        return false;
+      }
+
+      if (options.force)
+        return this.unlinkClaimIfUnchanged(filePath, state.raw);
+
+      if (
+        this.isOwnedByThisProcess(state.claim) ||
+        this.isClaimStale(state.claim)
+      ) {
+        return this.unlinkClaimIfUnchanged(filePath, state.raw);
+      }
       return false;
-    }
-
-    if (options.force) return this.unlinkClaim(filePath);
-
-    if (
-      this.isOwnedByThisProcess(state.claim) ||
-      this.isClaimStale(state.claim)
-    ) {
-      return this.unlinkClaim(filePath);
-    }
-    return false;
+    });
   }
 
-  /** Removes a claim file, reporting honestly if it had already vanished. */
-  private unlinkClaim(filePath: string): boolean {
+  /**
+   * Removes the claim file only if it still holds exactly the bytes that were
+   * classified. A different claim, or none, means the decision above was
+   * about a claim that no longer exists, and deleting what replaced it would
+   * free a port another process holds. Reports honestly if it had vanished.
+   */
+  private unlinkClaimIfUnchanged(
+    filePath: string,
+    expectedRaw: string,
+  ): boolean {
+    let current: string;
+    try {
+      current = fs.readFileSync(filePath, "utf-8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw new ClaimIoError("read", filePath, error as NodeJS.ErrnoException);
+    }
+    if (current !== expectedRaw) return false;
     try {
       fs.unlinkSync(filePath);
       return true;

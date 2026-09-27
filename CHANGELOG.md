@@ -5,7 +5,7 @@ All notable changes to **platformio-mcp** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.1.0] - Unreleased
+## [3.2.0] - Unreleased
 
 ### Added
 
@@ -28,20 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `install_library` / `lib install` accept PlatformIO's canonical `owner/name`
   identifier (`bblanchon/ArduinoJson`), and `validateSerialPort` accepts
   `/dev/serial/by-id/...`, `/dev/serial/by-path/...` and `/dev/ttyAMA0`.
-- Optional `platformio-mcp-python` compatibility mode registers all 40 pinned
-  reference tool names alongside 72 normal-mode tools. Registration is not a
-  declaration of completed behavioral or physical acceptance.
-- Connection-owned serial sessions, bounded capture, memory telemetry and port
-  diagnosis without compatibility mode, preserving legacy monitor tools.
-- Retained-artifact flash verification with connection-local approval/resume;
-  ESP firmware/filesystem OTA with pinned destinations, bounded optional ICMP
-  checks, and a shared `upload-ota` CLI command.
-- Classified debugger operations, ELF/partition/core-dump inspection, and serial
-  or PPK2 power profiling with explicit device and electrical authorization.
-- Functional candidate packaging across npm, Python and GHCR, including all seven
-  requested scoped npm name families. Candidates remain unpublished until their
-  authority, naming eligibility and release gates are satisfied.
-- Source-bound acceptance evidence collection and installer evidence production.
 
 ### Changed
 
@@ -67,11 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   holds a claim on the port and is `safeToAutoRetry: false`. This `diagnostic`
   object ships inside MCP `upload_firmware` / `upload_filesystem` results, so
   consumers matching the old string must update.
-- Resolve server policy and host configuration provenance without treating
-  `config.toml` settings as blanket server authorization. Preserve existing Codex
-  comments, restrictions, custom launchers and policy selectors during installation.
-- Pin every npm wrapper to the exact canonical release version and keep package
-  eligibility, publisher control, publication and installed verification separate.
 
 ### Fixed
 
@@ -93,6 +74,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   device itself (reserved DOS device names); those filenames are now prefixed.
 - `reset_server_state` skipped `.reclaim` breakers and `.tmp.` files, so it
   reported "all locks cleared" while leaving a wedged port behind.
+- `releasePort` could delete a claim it never examined: a replacement claim
+  published between its read and its unlink was removed under the old claim's
+  authority, freeing a port another process held. Every claim mutation now runs
+  under a crash-safe per-port guard (`<claim>.guard.lock`, proper-lockfile;
+  a guard left by a dead process is taken over after 5 s), and the unlink is
+  conditional on the claim bytes being exactly what was classified. Covered by
+  interleaving regression tests.
+
+## [3.1.0] - 2026-09-25
+
+### Added
+
+- Optional `platformio-mcp-python` compatibility mode registers all 40 pinned
+  reference tool names alongside 72 normal-mode tools. Registration is not a
+  declaration of completed behavioral or physical acceptance.
+- Connection-owned serial sessions, bounded capture, memory telemetry and port
+  diagnosis without compatibility mode, preserving legacy monitor tools.
+- Retained-artifact flash verification with connection-local approval/resume;
+  ESP firmware/filesystem OTA with pinned destinations, bounded optional ICMP
+  checks, and a shared `upload-ota` CLI command.
+- Classified debugger operations, ELF/partition/core-dump inspection, and serial
+  or PPK2 power profiling with explicit device and electrical authorization.
+- Functional candidate packaging across npm, Python and GHCR, including all seven
+  requested scoped npm name families. Candidates remain unpublished until their
+  authority, naming eligibility and release gates are satisfied.
+- Source-bound acceptance evidence collection and installer evidence production.
+
+### Changed
+
+- Resolve server policy and host configuration provenance without treating
+  `config.toml` settings as blanket server authorization. Preserve existing Codex
+  comments, restrictions, custom launchers and policy selectors during installation.
+- Pin every npm wrapper to the exact canonical release version and keep package
+  eligibility, publisher control, publication and installed verification separate.
+
+### Fixed
+
 - Advertise retained flash resume and approval fields in MCP schemas.
 - Expose owned serial, retained flash and OTA capabilities in normal mode.
 - Return bounded schema-validation errors instead of internal errors for invalid

@@ -2276,7 +2276,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         file.endsWith(".reclaim") ||
                         file.includes(".tmp.")
                       ) {
-                        fs.unlinkSync(path.join(GLOBAL_LOCKS_DIR, file));
+                        // A per-port guard (proper-lockfile) is a directory, not a file.
+                        fs.rmSync(path.join(GLOBAL_LOCKS_DIR, file), {
+                          recursive: true,
+                          force: true,
+                        });
                       }
                     }
                   }

@@ -10,6 +10,7 @@ import {
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import lockfile from "proper-lockfile";
 
 // Isolate from the developer's real ~/.platformio-mcp. Must be set before the
 // modules below are imported, because paths.ts resolves the data dir at import
@@ -502,6 +503,147 @@ describe("SemaphoreManager releasePort", () => {
     const old = new Date(Date.now() - 60_000);
     fs.utimesSync(claimFile(PORT), old, old);
     expect(portSemaphoreManager.releasePort(PORT)).toBe(true);
+  });
+});
+
+describe("SemaphoreManager releasePort interleaving", () => {
+  // The race reviewed on the PR: releasePort classifies claim A, another
+  // process replaces the file with fresh claim B between that read and the
+  // unlink, and the unlink then deletes B under A's authority -- freeing a
+  // port B's owner believes it holds. Two mechanisms close it (the per-port
+  // guard and the bytes-unchanged unlink); each has a test that fails on
+  // the previous implementation.
+  const guardPath = () => `${claimFile(PORT)}.guard`;
+
+  beforeEach(() => fs.rmSync(claimFile(PORT), { force: true }));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(claimFile(PORT), { force: true });
+    fs.rmSync(`${guardPath()}.lock`, { recursive: true, force: true });
+  });
+
+  const staleA = () => ({
+    type: "upload",
+    owner_workspace: "/tmp/dead",
+    owner_pid: 999999,
+    hostname: os.hostname(),
+    timestamp: Date.now() - 1000,
+  });
+  const freshB = () => ({
+    type: "upload",
+    owner_workspace: "/tmp/other-live",
+    owner_pid: process.ppid, // alive, not us
+    hostname: os.hostname(),
+    timestamp: Date.now(),
+  });
+
+  function injectReplacementAfterClassify() {
+    // Simulate a writer that lands between classify and unlink. It bypasses
+    // the guard deliberately (an admin reset, an older tool version sharing
+    // the directory), which is exactly what the bytes check exists for.
+    const original = (
+      portSemaphoreManager as unknown as {
+        classifyClaimFile: (f: string, p: string) => unknown;
+      }
+    ).classifyClaimFile.bind(portSemaphoreManager);
+    vi.spyOn(
+      portSemaphoreManager as unknown as {
+        classifyClaimFile: (f: string, p: string) => unknown;
+      },
+      "classifyClaimFile",
+    ).mockImplementationOnce((f: string, p: string) => {
+      const state = original(f, p);
+      writeRawClaim(PORT, freshB());
+      return state;
+    });
+  }
+
+  it("does not delete a claim that replaced the one it classified as stale", () => {
+    writeRawClaim(PORT, staleA());
+    injectReplacementAfterClassify();
+
+    expect(portSemaphoreManager.releasePort(PORT)).toBe(false);
+
+    const survivor = portSemaphoreManager.getClaim(PORT);
+    expect(survivor?.owner_workspace).toBe("/tmp/other-live");
+  });
+
+  it("does not delete a replacement claim even when forced", () => {
+    // `port release --force` authorises deleting the claim the operator
+    // looked at, not whatever happens to be there by the time it runs.
+    writeRawClaim(PORT, staleA());
+    injectReplacementAfterClassify();
+
+    expect(portSemaphoreManager.releasePort(PORT, { force: true })).toBe(false);
+    expect(portSemaphoreManager.getClaim(PORT)?.owner_workspace).toBe(
+      "/tmp/other-live",
+    );
+  });
+
+  it("does not delete a claim that replaced an abandoned unreadable file", () => {
+    fs.mkdirSync(GLOBAL_LOCKS_DIR, { recursive: true });
+    fs.writeFileSync(claimFile(PORT), "{ not json");
+    const old = new Date(Date.now() - 60_000);
+    fs.utimesSync(claimFile(PORT), old, old);
+    injectReplacementAfterClassify();
+
+    expect(portSemaphoreManager.releasePort(PORT)).toBe(false);
+    expect(portSemaphoreManager.getClaim(PORT)?.owner_workspace).toBe(
+      "/tmp/other-live",
+    );
+  });
+
+  it("serialises release against a publisher holding the port guard", () => {
+    // Another process is mid-publish (it holds the guard). A release must
+    // wait for it and, if it does not finish in time, report the port busy
+    // rather than act on a claim that is about to change.
+    writeRawClaim(PORT, staleA());
+    const unlock = lockfile.lockSync(guardPath(), { realpath: false });
+    try {
+      expect(() => portSemaphoreManager.releasePort(PORT)).toThrow(
+        PortBusyError,
+      );
+      expect(fs.existsSync(claimFile(PORT))).toBe(true);
+    } finally {
+      unlock();
+    }
+    // Once the publisher is done the same release goes through.
+    expect(portSemaphoreManager.releasePort(PORT)).toBe(true);
+  }, 15000);
+
+  it("serialises claimPort against a releaser holding the port guard", () => {
+    const unlock = lockfile.lockSync(guardPath(), { realpath: false });
+    try {
+      expect(() =>
+        portSemaphoreManager.claimPort(PORT, "Firmware Upload"),
+      ).toThrow(PortBusyError);
+      expect(fs.existsSync(claimFile(PORT))).toBe(false);
+    } finally {
+      unlock();
+    }
+    expect(portSemaphoreManager.claimPort(PORT, "Firmware Upload").port).toBe(
+      PORT,
+    );
+  }, 15000);
+
+  it("takes over a guard left behind by a dead process", () => {
+    // proper-lockfile treats a guard whose mtime is older than the stale
+    // threshold as abandoned. Without this, one crash mid-release would wedge
+    // the port -- the exact property the reclaim breaker lacks.
+    const lockDir = `${guardPath()}.lock`;
+    fs.mkdirSync(lockDir, { recursive: true });
+    const old = new Date(Date.now() - 60_000);
+    fs.utimesSync(lockDir, old, old);
+    writeRawClaim(PORT, staleA());
+
+    expect(portSemaphoreManager.releasePort(PORT)).toBe(true);
+    expect(fs.existsSync(lockDir)).toBe(false);
+  });
+
+  it("leaves no guard directory behind after a claim/release cycle", () => {
+    portSemaphoreManager.claimPort(PORT, "Firmware Upload");
+    portSemaphoreManager.releasePort(PORT);
+    expect(fs.existsSync(`${guardPath()}.lock`)).toBe(false);
   });
 });
 
