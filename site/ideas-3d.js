@@ -7,48 +7,39 @@ const projects = {
   contact: {
     title: "The lid is the switch.",
     category: "TACTILE INTERFACES",
-    action: "HINGED LID / COPPER CONTACTS",
     description:
-      "Close the lid. Bridge two copper pads. Wake a ring of light. A small gesture becomes a physical interface.",
-    board: "ESP32-S3 · Arduino",
-    components: "Copper pads · GPIO input · addressable RGB LED",
+      "A copper contact. A ring of light. Turn a simple gesture into an interface.",
+    board: "ESP32-S3",
+    boardNote: "Arduino · copper-pad input",
     library: "Adafruit NeoPixel",
     url: "https://github.com/adafruit/Adafruit_NeoPixel",
-    note: " drives the addressable light; Arduino GPIO reads the contact. Debounce the input before changing state.",
-    prompt:
-      "Find the board, add NeoPixel, and verify a LID_CLOSED serial marker.",
+    note: "Addressable light, with GPIO contact sensing.",
     alt: "Animated 3D concept: an ESP32-S3 device with a hinged lid and copper switch contacts",
     color: "#75bfff",
   },
   climate: {
     title: "Give the room a voice.",
     category: "ENVIRONMENTAL SENSING",
-    action: "BME280 / I²C SENSOR BUS",
     description:
-      "A pocket-sized observatory for your space. Sense temperature, humidity, and pressure, then make the invisible visible.",
-    board: "ESP32-C3 · Arduino",
-    components: "BME280 · SSD1306 OLED · I²C",
+      "Give temperature, humidity, and pressure a place on your desk.",
+    board: "ESP32-C3",
+    boardNote: "Arduino · BME280 + OLED over I²C",
     library: "Adafruit BME280",
     url: "https://github.com/adafruit/Adafruit_BME280_Library",
-    note: " reads the sensor; Adafruit SSD1306 + GFX render the OLED. Check I²C addresses and let PlatformIO resolve library dependencies.",
-    prompt:
-      "Add the sensor libraries, scan I²C, and verify valid readings over serial.",
+    note: "Sensor readings; SSD1306 + GFX for the display.",
     alt: "Animated 3D concept: an environmental sensor with a vented enclosure, floating OLED, BME280 sensor, and ESP32-C3 board",
     color: "#79e4c3",
   },
   rover: {
     title: "Put curiosity on wheels.",
     category: "ROBOTICS + MOTION",
-    action: "DISTANCE SENSING / MOTOR PWM",
     description:
-      "A little rover with a sense of space. Read distance, drive two motors, and turn a desk into an exploration ground.",
-    board: "ESP32 DevKit · Arduino",
-    components: "VL53L0X · TB6612FNG · dual DC motors",
+      "Sense the distance. Steer around it. Give curiosity a pair of wheels.",
+    board: "ESP32 DevKit",
+    boardNote: "Arduino · TB6612FNG motor driver",
     library: "Pololu VL53L0X",
     url: "https://github.com/pololu/vl53l0x-arduino",
-    note: " reads time-of-flight distance over I²C. ESP32 LEDC supplies PWM to the motor driver; use a motor supply with a shared ground.",
-    prompt:
-      "Check the motor pins, build the firmware, and test the stop-distance logic.",
+    note: "Time-of-flight ranging, with ESP32 PWM for motion.",
     alt: "Animated 3D concept: a two-wheel explorer robot with an ESP32 board, motor driver and front distance sensor",
     color: "#ffba7a",
   },
@@ -62,7 +53,10 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let activeKey = "contact";
 let paused = reducedMotion.matches;
 let renderer, scene, camera, contactModel, contactPivot, contactLight;
-let elapsed = reducedMotion.matches ? 2 : 0,
+let elapsed = 2,
+  reelTime = 0,
+  reelIndex = 0,
+  readingDetails = false,
   previousTime = 0,
   animationFrame = 0,
   visible = true;
@@ -84,12 +78,32 @@ function material(color, metalness = 0.5, roughness = 0.35, extra = {}) {
 function shape(parent, geometry, surface, position = [0, 0, 0]) {
   const mesh = new THREE.Mesh(geometry, surface);
   mesh.position.set(...position);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
 }
 
 function box(parent, dimensions, surface, position) {
-  return shape(parent, new THREE.BoxGeometry(...dimensions), surface, position);
+  const [width, height, depth] = dimensions;
+  const bevel = Math.min(width, height, depth) * 0.16;
+  const outline = new THREE.Shape();
+  outline.moveTo(-width / 2 + bevel, -depth / 2 + bevel);
+  outline.lineTo(width / 2 - bevel, -depth / 2 + bevel);
+  outline.lineTo(width / 2 - bevel, depth / 2 - bevel);
+  outline.lineTo(-width / 2 + bevel, depth / 2 - bevel);
+  outline.closePath();
+  const geometry = new THREE.ExtrudeGeometry(outline, {
+    depth: height - bevel * 2,
+    bevelEnabled: true,
+    bevelSegments: 2,
+    steps: 1,
+    bevelSize: bevel,
+    bevelThickness: bevel,
+  });
+  geometry.translate(0, 0, -height / 2 + bevel);
+  geometry.rotateX(-Math.PI / 2);
+  return shape(parent, geometry, surface, position);
 }
 
 function cylinder(parent, radius, height, surface, position, segments = 48) {
@@ -191,7 +205,7 @@ function createClimate() {
   const screen = new THREE.Group();
   model.add(screen);
   screen.position.set(0, 1.69, 0.11);
-  screen.rotation.x = -0.3;
+  screen.rotation.x = 0.2;
   box(screen, [1.88, 0.12, 1.12], dark, [0, 0, 0]);
   const display = shape(
     screen,
@@ -276,46 +290,61 @@ function createRover() {
   return model;
 }
 
-/** Keep all context and assistive text in sync when a visitor switches applications. */
+/** Update the model and its concise editorial caption together at a reel transition. */
 function selectProject(key) {
   activeKey = key;
   const project = projects[key];
-  const fields = {
-    "#project-title": project.title,
-    "#project-description": project.description,
-    "#project-board": project.board,
-    "#project-components": project.components,
-    "#project-prompt": project.prompt,
-    "#model-category": project.category,
-    "#model-action": project.action,
-  };
-  for (const [selector, text] of Object.entries(fields))
-    document.querySelector(selector).textContent = text;
+  document.querySelector("#project-title").textContent = project.title;
+  document.querySelector("#project-description").textContent =
+    project.description;
+  document.querySelector("#model-category").textContent = project.category;
+  const boardNote = document.createElement("span");
+  boardNote.textContent = project.boardNote;
+  document
+    .querySelector("#project-board")
+    .replaceChildren(document.createTextNode(project.board), boardNote);
   document.querySelector("#project-index").textContent =
     `0${Object.keys(projects).indexOf(key) + 1} / 03`;
-  const link = document.createElement("a");
+  const link = document.querySelector("#project-library");
   link.href = project.url;
-  link.textContent = project.library;
-  document
-    .querySelector("#project-library")
-    .replaceChildren(link, document.createTextNode(project.note));
+  link.textContent = project.library + " ↗";
+  document.querySelector("#project-library-note").textContent = project.note;
   canvas.setAttribute("aria-label", project.alt);
   document
     .querySelector("#idea-lab")
     .style.setProperty("--concept-accent", project.color);
   document
-    .querySelectorAll("[data-project]")
-    .forEach((button) =>
-      button.setAttribute(
-        "aria-pressed",
-        String(button.dataset.project === key),
-      ),
+    .querySelectorAll("[data-reel]")
+    .forEach((marker) =>
+      marker.classList.toggle("active", marker.dataset.reel === key),
     );
   models.forEach((model, id) => {
     model.visible = id === key;
   });
   updateFallback();
-  render();
+  resize();
+}
+
+/** Crossfade only between concepts; pause timing while a visitor reads a library link. */
+function advanceReel(delta) {
+  if (readingDetails || !models.has(activeKey)) {
+    canvas.style.opacity = 1;
+    details.style.opacity = 1;
+    return;
+  }
+  reelTime += delta;
+  const sequence = ["contact", "climate", "rover"].filter((key) =>
+    models.has(key),
+  );
+  const phase = reelTime % 14;
+  const nextIndex = Math.floor(reelTime / 14) % sequence.length;
+  if (nextIndex !== reelIndex || !models.has(activeKey)) {
+    reelIndex = nextIndex;
+    selectProject(sequence[nextIndex]);
+  }
+  const opacity = phase > 13.2 ? (14 - phase) / 0.8 : Math.min(1, phase / 0.8);
+  canvas.style.opacity = opacity;
+  document.querySelector(".project-details").style.opacity = opacity;
 }
 
 function updateFallback() {
@@ -331,9 +360,14 @@ function resize() {
     height = stage.clientHeight;
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
-  camera.position.set(3.8, 3.7, 5.2);
-  if (camera.aspect < 1.1) camera.position.multiplyScalar(1.2);
-  camera.lookAt(0, 1.1, 0);
+  camera.position.set(3.9, 3.4, 5.4);
+  if (camera.aspect < 1.1) camera.position.multiplyScalar(1.14);
+  camera.lookAt(
+    0,
+    activeKey === "contact" ? 1.25 : activeKey === "climate" ? 1 : 0.65,
+    0,
+  );
+  camera.zoom = activeKey === "contact" ? 1 : 1.12;
   camera.updateProjectionMatrix();
   render();
 }
@@ -342,18 +376,20 @@ function resize() {
 function render() {
   if (!renderer || !scene) return;
   const current = models.get(activeKey);
-  if (current) current.rotation.y = -0.5 + Math.sin(elapsed * 0.25) * 0.45;
+  if (current)
+    current.rotation.y =
+      (activeKey === "rover" ? 2.5 : -0.5) + Math.sin(elapsed * 0.16) * 0.28;
   if (contactPivot) {
-    const openness = (1 - Math.cos(elapsed * 0.72)) / 2;
+    const openness = (1 - Math.cos(elapsed * 0.42)) / 2;
     contactPivot.rotation.x = -openness * 1.72;
     if (contactLight)
       contactLight.emissiveIntensity = openness < 0.08 ? 2.8 : 0.1;
   }
   floatingParts.forEach(({ part, height, phase }) => {
-    part.position.y = height + Math.sin(elapsed * 0.8 + phase) * 0.085;
+    part.position.y = height + Math.sin(elapsed * 0.6 + phase) * 0.045;
   });
   wheels.forEach((wheel) => {
-    wheel.rotation.x = elapsed * 0.45;
+    wheel.rotation.x = elapsed * 0.22;
   });
   renderer.render(scene, camera);
 }
@@ -364,7 +400,11 @@ function animate(now) {
     previousTime = 0;
     return;
   }
-  if (previousTime) elapsed += Math.min((now - previousTime) / 1000, 0.05);
+  if (previousTime) {
+    const delta = Math.min((now - previousTime) / 1000, 0.05);
+    elapsed += delta;
+    advanceReel(delta);
+  }
   previousTime = now;
   render();
   animationFrame = requestAnimationFrame(animate);
@@ -375,15 +415,30 @@ function resumeIfNeeded() {
     animationFrame = requestAnimationFrame(animate);
 }
 
-document
-  .querySelectorAll("[data-project]")
-  .forEach((button) =>
-    button.addEventListener("click", () =>
-      selectProject(button.dataset.project),
-    ),
-  );
+const details = document.querySelector(".project-details");
+details.addEventListener("pointerenter", () => {
+  readingDetails = true;
+});
+details.addEventListener("pointerleave", () => {
+  readingDetails = details.contains(document.activeElement);
+});
+details.addEventListener("focusin", () => {
+  readingDetails = true;
+});
+details.addEventListener("focusout", () => {
+  readingDetails = details.matches(":hover");
+});
 function syncMotionButton() {
-  motionButton.textContent = paused ? "Play motion" : "Pause motion";
+  motionButton.textContent = paused ? "▶" : "Ⅱ";
+  motionButton.setAttribute(
+    "aria-label",
+    paused ? "Play concept reel" : "Pause concept reel",
+  );
+  motionButton.title = paused ? "Play concept reel" : "Pause concept reel";
+  if (paused) {
+    canvas.style.opacity = 1;
+    details.style.opacity = 1;
+  }
   motionButton.setAttribute("aria-pressed", String(paused));
 }
 motionButton.addEventListener("click", () => {
@@ -407,20 +462,35 @@ async function initialize() {
       antialias: true,
       powerPreference: "low-power",
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.35;
+    renderer.toneMappingExposure = 1.15;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
     const pmrem = new THREE.PMREMGenerator(renderer);
     const environment = new RoomEnvironment();
     scene.environment = pmrem.fromScene(environment, 0.04).texture;
-    scene.environmentIntensity = 0.65;
+    scene.environmentIntensity = 0.9;
     environment.dispose();
     pmrem.dispose();
-    scene.add(new THREE.HemisphereLight("#c5e5ff", "#16243c", 2));
+    scene.add(new THREE.HemisphereLight("#c5e5ff", "#16243c", 1.4));
     const key = new THREE.DirectionalLight("#d4e9ff", 3);
     key.position.set(3, 7, 5);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    Object.assign(key.shadow.camera, {
+      left: -4,
+      right: 4,
+      top: 4,
+      bottom: -4,
+      near: 0.5,
+      far: 18,
+    });
+    key.shadow.bias = -0.0005;
+    key.shadow.normalBias = 0.035;
+    key.shadow.radius = 4;
     scene.add(key);
     const rim = new THREE.DirectionalLight("#448eff", 3);
     rim.position.set(-4, 3, -3);
@@ -428,22 +498,14 @@ async function initialize() {
     const warm = new THREE.DirectionalLight("#ffd1a8", 1.5);
     warm.position.set(3, 2, -4);
     scene.add(warm);
-    const grid = new THREE.GridHelper(9, 24, "#305476", "#182c41");
-    grid.position.y = -0.13;
-    grid.material.transparent = true;
-    grid.material.opacity = 0.5;
-    scene.add(grid);
-    const ring = shape(
+    const floor = shape(
       scene,
-      new THREE.TorusGeometry(2.28, 0.008, 6, 100),
-      new THREE.MeshBasicMaterial({
-        color: "#4b88b8",
-        transparent: true,
-        opacity: 0.65,
-      }),
-      [0, -0.1, 0],
+      new THREE.CircleGeometry(4.8, 96),
+      new THREE.ShadowMaterial({ color: "#00040b", opacity: 0.36 }),
+      [0, -0.13, 0],
     );
-    ring.rotation.x = -Math.PI / 2;
+    floor.rotation.x = -Math.PI / 2;
+    floor.castShadow = false;
     const climate = createClimate();
     climate.visible = false;
     models.set("climate", climate);
@@ -480,6 +542,10 @@ async function initialize() {
       contactModel.traverse((object) => {
         if (object.name === "StudioFloor" || object.isCamera || object.isLight)
           remove.push(object);
+        if (object.isMesh) {
+          object.castShadow = true;
+          object.receiveShadow = true;
+        }
         if (object.material?.name === "AmberDiffuser")
           contactLight = object.material;
       });
@@ -492,8 +558,9 @@ async function initialize() {
       render();
     } catch {
       document.querySelector("#model-status").textContent =
-        "This model could not load. Try Atmosphere or Scout rover.";
-      updateFallback();
+        "Explore the next hardware concept.";
+      selectProject("climate");
+      render();
     }
   } catch {
     renderer = null;

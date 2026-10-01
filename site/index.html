@@ -130,28 +130,11 @@
         <div
           class="idea-lab"
           id="idea-lab"
-          aria-label="Interactive 3D project concepts"
+          aria-label="Animated hardware concept showcase"
         >
           <div class="lab-bar">
-            <span
-              ><span class="lab-cross" aria-hidden="true">+</span> THE
-              POSSIBILITY ENGINE</span
-            ><span class="lab-edition">VOL. 01 / IDEA LAB</span>
-          </div>
-          <div
-            class="project-tabs"
-            role="group"
-            aria-label="Choose a 3D application"
-          >
-            <button type="button" data-project="contact" aria-pressed="true">
-              <span>01</span> Copper contact
-            </button>
-            <button type="button" data-project="climate" aria-pressed="false">
-              <span>02</span> Atmosphere
-            </button>
-            <button type="button" data-project="rover" aria-pressed="false">
-              <span>03</span> Scout rover
-            </button>
+            <span>FROM IDEA TO OBJECT</span
+            ><span class="lab-edition">THREE POSSIBILITIES. ONE AGENT.</span>
           </div>
           <div class="model-stage" id="model-stage">
             <canvas
@@ -160,60 +143,58 @@
             ></canvas>
             <div class="stage-caption">
               <span id="model-category">TACTILE INTERFACES</span
-              ><span class="concept-label"
-                >3D CONCEPT / NOT LIVE TELEMETRY</span
-              >
+              ><span class="concept-label">CONCEPT STUDY</span>
             </div>
             <div class="model-fallback" id="model-fallback">
               <span class="fallback-symbol" aria-hidden="true">⌗</span>
-              <p id="model-status">Preparing the 3D workbench…</p>
-              <p>The board and library notes below are always available.</p>
+              <p id="model-status">Preparing the concept…</p>
+              <p>Explore the board and library notes below.</p>
             </div>
             <div class="stage-controls">
-              <span id="model-action">HINGED LID / COPPER CONTACTS</span
-              ><button type="button" id="motion-toggle" aria-pressed="false">
-                Pause motion
+              <div class="reel-markers" aria-hidden="true">
+                <span data-reel="contact" class="active"></span
+                ><span data-reel="climate"></span
+                ><span data-reel="rover"></span>
+              </div>
+              <button
+                type="button"
+                id="motion-toggle"
+                aria-pressed="false"
+                aria-label="Pause concept reel"
+              >
+                Ⅱ
               </button>
             </div>
           </div>
-          <div class="project-details" aria-live="polite" aria-atomic="true">
+          <div class="project-details">
             <div class="project-title-row">
               <h2 id="project-title">The lid is the switch.</h2>
               <span id="project-index">01 / 03</span>
             </div>
             <p id="project-description">
-              Close the lid. Bridge two copper pads. Wake a ring of light. A
-              small gesture becomes a physical interface.
+              A copper contact. A ring of light. Turn a simple gesture into an
+              interface.
             </p>
             <dl class="project-specs">
               <div>
-                <dt>BOARD</dt>
-                <dd id="project-board">ESP32-S3 · Arduino</dd>
+                <dt>THE BOARD</dt>
+                <dd id="project-board">
+                  ESP32-S3 <span>Arduino · copper-pad input</span>
+                </dd>
               </div>
               <div>
-                <dt>BUILDING BLOCKS</dt>
-                <dd id="project-components">
-                  Copper pads · GPIO input · addressable RGB LED
+                <dt>THE LIBRARIES</dt>
+                <dd>
+                  <a
+                    id="project-library"
+                    href="https://github.com/adafruit/Adafruit_NeoPixel"
+                    >Adafruit NeoPixel ↗</a
+                  ><span id="project-library-note"
+                    >Addressable light, with GPIO contact sensing.</span
+                  >
                 </dd>
               </div>
             </dl>
-            <div class="library-note">
-              <span class="library-label">LIBRARY INTELLIGENCE</span>
-              <p id="project-library">
-                <a href="https://github.com/adafruit/Adafruit_NeoPixel"
-                  >Adafruit NeoPixel</a
-                >
-                drives the addressable light; Arduino GPIO reads the contact.
-                Debounce the input before changing state.
-              </p>
-            </div>
-            <p class="project-prompt">
-              <span>ASK YOUR AGENT</span
-              ><q id="project-prompt"
-                >Find the board, add NeoPixel, and verify a LID_CLOSED serial
-                marker.</q
-              >
-            </p>
           </div>
         </div>
       </section>
