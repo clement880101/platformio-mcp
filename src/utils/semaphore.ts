@@ -189,6 +189,12 @@ export class SemaphoreManager {
         release = lockfile.lockSync(guard, {
           realpath: false,
           stale: GUARD_STALE_MS,
+          // The default handler throws from a timer if the guard's mtime
+          // refresh fails -- say, a reset_server_state sweep removed the
+          // directory while it was held -- which would crash the process
+          // from an unrelated code path. The critical section is over in
+          // milliseconds; a compromised guard is simply not ours to report.
+          onCompromised: () => {},
         });
         break;
       } catch (error) {

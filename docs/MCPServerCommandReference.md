@@ -7,7 +7,7 @@
 
 This document serves as the definitive reference for all tools exposed by the PlatformIO MCP Server.
 
-## 3.1.0 additions (unreleased)
+## 3.1.0 additions
 
 Existing tool names and argument contracts remain available. Normal mode now exposes
 72 tools; `--compat platformio-mcp-python` adds the 40 reference names for 112 total.
@@ -30,7 +30,7 @@ The shared CLI provides `flash-verify`, `upload-ota`, and `power-profile`. For O
 credentials, `--auth-env <variable>` reads a host environment variable; no plaintext
 password flag is accepted. Explicit `--approve` does not override policy denial.
 
-Prepared 3.1.0 artifacts are not a published release. See
+3.1.0 is released; 3.2.0 is in development. See
 [distribution readiness](DISTRIBUTION_READINESS.md) for outstanding acceptance and
 publisher requirements; supported tool names alone do not prove full parity.
 
