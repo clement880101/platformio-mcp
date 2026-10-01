@@ -20,19 +20,36 @@
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://pioagent.dev/" />
-    <link rel="icon" href="assets/favicon.ico" />
+    <link rel="icon" type="image/png" href="assets/ant-robot.png" />
     <link rel="stylesheet" href="styles.css" />
     <script src="script.js" defer></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three/three.module.min.js",
+          "three/addons/": "./vendor/three/addons/"
+        }
+      }
+    </script>
+    <script type="module" src="ideas-3d.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="header wrap">
-      <a class="brand" href="#" aria-label="PIO Agent home"
-        ><span class="brand-symbol" aria-hidden="true">p<span>ı</span>o</span>
-        PIO<span class="brand-light">AGENT</span></a
-      >
+      <a class="brand" href="#" aria-label="PIO Agent home">
+        <img
+          class="brand-robot"
+          src="assets/ant-robot.png"
+          alt=""
+          width="48"
+          height="48"
+        />
+        <span class="brand-wordmark"
+          >PIO <span>AGENT</span><small>HARDWARE INTELLIGENCE</small></span
+        >
+      </a>
       <nav aria-label="Main navigation">
-        <a href="#possibilities">Possibilities</a
+        <a href="#idea-lab">Idea lab</a><a href="#possibilities">Workflows</a
         ><a href="#control">The dashboard</a
         ><a href="https://github.com/jl-codes/platformio-mcp" class="nav-github"
           >GitHub <span aria-hidden="true">↗</span></a
@@ -68,31 +85,94 @@
             PLATFORMIO
           </p>
         </div>
-        <div class="hero-art">
-          <div class="art-grid" aria-hidden="true"></div>
-          <span class="coordinate coordinate-top" aria-hidden="true"
-            >INTERFACE_01 / HARDWARE INTELLIGENCE</span
-          >
-          <div class="orbit orbit-one" aria-hidden="true"></div>
-          <div class="orbit orbit-two" aria-hidden="true"></div>
-          <img
-            class="mascot"
-            src="assets/pio-agent.png"
-            alt="PIO Agent’s chrome robot mascot with glowing blue eyes"
-            width="1254"
-            height="1254"
-            fetchpriority="high"
-          />
-          <div class="art-label label-top">
-            <span aria-hidden="true">⌘</span> Your idea. Real hardware.
+        <div
+          class="idea-lab"
+          id="idea-lab"
+          aria-label="Interactive 3D project concepts"
+        >
+          <div class="lab-bar">
+            <span
+              ><span class="lab-cross" aria-hidden="true">+</span> THE
+              POSSIBILITY ENGINE</span
+            ><span class="lab-edition">VOL. 01 / IDEA LAB</span>
           </div>
-          <div class="art-label label-bottom">
-            <span class="blue-dot" aria-hidden="true"></span> CODE → BUILD →
-            FLASH → VERIFY
-          </div>
-          <span class="coordinate coordinate-bottom" aria-hidden="true"
-            >THE WORLD IS YOUR OUTPUT DEVICE.</span
+          <div
+            class="project-tabs"
+            role="group"
+            aria-label="Choose a 3D application"
           >
+            <button type="button" data-project="contact" aria-pressed="true">
+              <span>01</span> Copper contact
+            </button>
+            <button type="button" data-project="climate" aria-pressed="false">
+              <span>02</span> Atmosphere
+            </button>
+            <button type="button" data-project="rover" aria-pressed="false">
+              <span>03</span> Scout rover
+            </button>
+          </div>
+          <div class="model-stage" id="model-stage">
+            <canvas
+              id="idea-canvas"
+              aria-label="Animated 3D concept: an ESP32-S3 device with a hinged lid and copper switch contacts"
+            ></canvas>
+            <div class="stage-caption">
+              <span id="model-category">TACTILE INTERFACES</span
+              ><span class="concept-label"
+                >3D CONCEPT / NOT LIVE TELEMETRY</span
+              >
+            </div>
+            <div class="model-fallback" id="model-fallback">
+              <span class="fallback-symbol" aria-hidden="true">⌗</span>
+              <p id="model-status">Preparing the 3D workbench…</p>
+              <p>The board and library notes below are always available.</p>
+            </div>
+            <div class="stage-controls">
+              <span id="model-action">HINGED LID / COPPER CONTACTS</span
+              ><button type="button" id="motion-toggle" aria-pressed="false">
+                Pause motion
+              </button>
+            </div>
+          </div>
+          <div class="project-details" aria-live="polite" aria-atomic="true">
+            <div class="project-title-row">
+              <h2 id="project-title">The lid is the switch.</h2>
+              <span id="project-index">01 / 03</span>
+            </div>
+            <p id="project-description">
+              Close the lid. Bridge two copper pads. Wake a ring of light. A
+              small gesture becomes a physical interface.
+            </p>
+            <dl class="project-specs">
+              <div>
+                <dt>BOARD</dt>
+                <dd id="project-board">ESP32-S3 · Arduino</dd>
+              </div>
+              <div>
+                <dt>BUILDING BLOCKS</dt>
+                <dd id="project-components">
+                  Copper pads · GPIO input · addressable RGB LED
+                </dd>
+              </div>
+            </dl>
+            <div class="library-note">
+              <span class="library-label">LIBRARY INTELLIGENCE</span>
+              <p id="project-library">
+                <a href="https://github.com/adafruit/Adafruit_NeoPixel"
+                  >Adafruit NeoPixel</a
+                >
+                drives the addressable light; Arduino GPIO reads the contact.
+                Debounce the input before changing state.
+              </p>
+            </div>
+            <p class="project-prompt">
+              <span>ASK YOUR AGENT</span
+              ><q id="project-prompt"
+                >Find the board, add NeoPixel, and verify a LID_CLOSED serial
+                marker.</q
+              >
+            </p>
+          </div>
         </div>
       </section>
       <section class="integrations wrap" aria-label="AI host integrations">
