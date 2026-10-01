@@ -58,6 +58,13 @@ document.querySelectorAll("[data-scenario]").forEach((button) => {
 const hostSelect = document.querySelector("#host-select");
 const command = document.querySelector("#install-command");
 const copyStatus = document.querySelector("#copy-status");
+document.querySelectorAll("[data-codex-install]").forEach((link) => {
+  link.addEventListener("click", () => {
+    hostSelect.value = "codex-plugin";
+    command.textContent = "npx platformio-mcp install --codex-plugin";
+    copyStatus.textContent = "";
+  });
+});
 hostSelect.addEventListener("change", () => {
   command.textContent = `npx platformio-mcp install --${hostSelect.value}`;
   copyStatus.textContent = "";
@@ -76,3 +83,18 @@ document.querySelector("#copy-command").addEventListener("click", async () => {
     copyStatus.textContent = "Command selected. Press Ctrl+C or ⌘C to copy.";
   }
 });
+
+// A user-requested handoff shares documentation; it does not grant installation or device access.
+document
+  .querySelector("#copy-agent-brief")
+  .addEventListener("click", async () => {
+    const brief =
+      "Read https://pioagent.dev/llms.txt and https://pioagent.dev/agents/ to assess whether PIO Agent (platformio-mcp) fits this embedded project. Explain the relevant capabilities, prerequisites, and installation options before making changes. Hardware writes require the applicable user approvals.";
+    const status = document.querySelector("#brief-status");
+    try {
+      await navigator.clipboard.writeText(brief);
+      status.textContent = "Copied. Paste it into your agent’s chat.";
+    } catch {
+      status.textContent = brief;
+    }
+  });
