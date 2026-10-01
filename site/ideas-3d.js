@@ -1,4 +1,4 @@
-/** Animated concept workbench with a reused device model and two procedural prototypes. */
+/** Animated hardware concepts with detailed procedural models and a reused device asset. */
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -47,6 +47,32 @@ const projects = {
     alt: "Animated 3D concept: a two-wheel explorer robot with an ESP32 board, motor driver and front distance sensor",
     color: "#ffba7a",
   },
+  arm: {
+    title: "Give an idea a hand.",
+    category: "PRECISION MOTION",
+    description:
+      "Reach, grip, repeat. Turn a motion sequence into something tangible.",
+    board: "ESP32-S3",
+    boardNote: "Arduino · PCA9685 + servo joints",
+    library: "Adafruit PWM Servo Driver",
+    url: "https://github.com/adafruit/Adafruit-PWM-Servo-Driver-Library",
+    note: "I²C servo control; a separate supply powers the motors.",
+    alt: "Animated 3D concept: an articulated servo arm with machined links, rotating joints, a two-finger gripper, and an ESP32 controller",
+    color: "#c4a5ff",
+  },
+  garden: {
+    title: "Listen to what grows.",
+    category: "CONNECTED GROWING",
+    description:
+      "Read the soil. Follow the trend. Give your plants a voice before they wilt.",
+    board: "ESP32-C3",
+    boardNote: "Arduino · capacitive soil sensor",
+    library: "Adafruit seesaw",
+    url: "https://github.com/adafruit/Adafruit_Seesaw",
+    note: "Soil moisture and temperature readings over I²C.",
+    alt: "Animated 3D concept: a ceramic planter with curved leaves, a capacitive soil probe, and a connected ESP32 monitor",
+    color: "#b5e99b",
+  },
 };
 
 const stage = document.querySelector("#model-stage");
@@ -67,6 +93,8 @@ let elapsed = 2,
 const models = new Map();
 const wheels = [];
 const floatingParts = [];
+let armShoulder, armElbow, armWrist, armTurret, gardenPlant, gardenIndicator;
+const gripperFingers = [];
 
 /** Create a shared physically lit material for the concept models. */
 function material(color, metalness = 0.5, roughness = 0.35, extra = {}) {
@@ -412,6 +440,302 @@ function createRover() {
   return model;
 }
 
+/** A cable follows a deliberate curve between physical components. */
+function cable(parent, points, color, radius = 0.024) {
+  return shape(
+    parent,
+    new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3(
+        points.map((point) => new THREE.Vector3(...point)),
+      ),
+      32,
+      radius,
+      10,
+      false,
+    ),
+    material(color, 0.15, 0.55),
+  );
+}
+
+/** Articulated desktop arm with concentric bearings, paired links, and a working gripper. */
+function createArm() {
+  const model = new THREE.Group();
+  const alloy = material("#72798e", 0.9, 0.25);
+  const violet = material("#51456f", 0.78, 0.3);
+  const rubber = material("#141924", 0.05, 0.78);
+  const brass = material("#d5b17b", 0.9, 0.26);
+  box(model, [2.5, 0.15, 2.05], violet, [0, 0.12, 0]);
+  for (const x of [-1.03, 1.03])
+    for (const z of [-0.8, 0.8]) {
+      cylinder(model, 0.13, 0.12, rubber, [x, -0.01, z]);
+      screw(model, [x, 0.215, z], 0.065);
+    }
+  const controller = board(model, 0.57);
+  controller.position.set(0.73, 0.27, 0.24);
+  box(model, [0.43, 0.05, 0.63], material("#215b6a"), [-0.81, 0.24, 0.48]);
+  for (let i = 0; i < 6; i++)
+    box(model, [0.045, 0.1, 0.2], brass, [-0.96 + i * 0.06, 0.3, 0.53]);
+  cylinder(model, 0.64, 0.15, alloy, [0, 0.29, -0.24]);
+  cylinder(model, 0.54, 0.22, rubber, [0, 0.44, -0.24]);
+  armTurret = new THREE.Group();
+  armTurret.position.set(0, 0.56, -0.24);
+  model.add(armTurret);
+  cylinder(armTurret, 0.57, 0.1, violet, [0, 0, 0]);
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI) / 4;
+    screw(
+      armTurret,
+      [Math.cos(angle) * 0.45, 0.065, Math.sin(angle) * 0.45],
+      0.035,
+    );
+  }
+  function joint(parent, radius) {
+    const axle = cylinder(parent, radius, 0.55, rubber, [0, 0, 0]);
+    axle.rotation.x = Math.PI / 2;
+    for (const side of [-1, 1]) {
+      const bearing = cylinder(parent, radius * 0.83, 0.07, alloy, [
+        0,
+        0,
+        side * 0.29,
+      ]);
+      bearing.rotation.x = Math.PI / 2;
+      const cap = cylinder(parent, radius * 0.49, 0.08, brass, [
+        0,
+        0,
+        side * 0.33,
+      ]);
+      cap.rotation.x = Math.PI / 2;
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3;
+        const bolt = screw(
+          parent,
+          [
+            Math.cos(angle) * radius * 0.65,
+            Math.sin(angle) * radius * 0.65,
+            side * 0.34,
+          ],
+          0.025,
+        );
+        bolt.rotation.x = (side * Math.PI) / 2;
+      }
+    }
+  }
+  function link(parent, length) {
+    for (const z of [-0.2, 0.2]) {
+      box(parent, [0.27, length, 0.1], violet, [0, length / 2, z]);
+      box(parent, [0.095, length * 0.62, 0.025], alloy, [
+        0,
+        length / 2,
+        z + Math.sign(z) * 0.06,
+      ]);
+    }
+    cable(
+      parent,
+      [
+        [0.16, 0.05, 0],
+        [0.26, length * 0.4, 0],
+        [0.19, length * 0.85, 0],
+        [0.02, length, 0],
+      ],
+      "#bf8b46",
+      0.022,
+    );
+  }
+  armShoulder = new THREE.Group();
+  armShoulder.position.y = 0.28;
+  armTurret.add(armShoulder);
+  joint(armShoulder, 0.28);
+  link(armShoulder, 1.02);
+  armElbow = new THREE.Group();
+  armElbow.position.y = 1.02;
+  armShoulder.add(armElbow);
+  joint(armElbow, 0.235);
+  link(armElbow, 0.87);
+  armWrist = new THREE.Group();
+  armWrist.position.y = 0.87;
+  armElbow.add(armWrist);
+  joint(armWrist, 0.18);
+  box(armWrist, [0.52, 0.22, 0.35], alloy, [0, 0.22, 0]);
+  for (const side of [-1, 1]) {
+    const finger = new THREE.Group();
+    finger.position.set(side * 0.19, 0.3, 0);
+    armWrist.add(finger);
+    box(finger, [0.1, 0.36, 0.17], violet, [0, 0.16, 0]);
+    box(finger, [0.19, 0.08, 0.17], rubber, [-side * 0.06, 0.34, 0]);
+    gripperFingers.push({ finger, side });
+  }
+  cable(
+    model,
+    [
+      [-0.8, 0.3, 0.3],
+      [-0.65, 0.5, 0],
+      [-0.3, 0.38, -0.1],
+    ],
+    "#a480d7",
+    0.027,
+  );
+  return model;
+}
+
+/** Build a curved leaf with a center ridge and a tapered organic silhouette. */
+function leafGeometry(length, width) {
+  const vertices = [],
+    indices = [];
+  const segments = 20;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const halfWidth = (Math.pow(Math.sin(Math.PI * t), 0.8) * width) / 2;
+    const lift = Math.sin(Math.PI * t) * length * 0.24 - t * t * length * 0.16;
+    for (const side of [-1, 0, 1])
+      vertices.push(
+        side * halfWidth,
+        lift + (side === 0 ? Math.sin(Math.PI * t) * 0.045 : 0),
+        t * length,
+      );
+    if (i < segments)
+      for (let strip = 0; strip < 2; strip++) {
+        const a = i * 3 + strip,
+          b = a + 3;
+        indices.push(a, b, a + 1, a + 1, b, b + 1);
+      }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(vertices, 3),
+  );
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** Ceramic planter, living canopy, capacitive probe, and a separate connected monitor. */
+function createGarden() {
+  const model = new THREE.Group();
+  const ceramic = material("#a8b7ab", 0.08, 0.3, { clearcoat: 0.5 });
+  const graphite = material("#1a2830", 0.65, 0.35);
+  const soil = material("#302920", 0, 0.96);
+  const profile = [
+    [0.55, 0.03],
+    [0.6, 0.04],
+    [0.64, 0.12],
+    [0.8, 1.03],
+    [0.81, 1.14],
+    [0.78, 1.19],
+    [0.73, 1.17],
+    [0.71, 1.06],
+    [0.56, 0.16],
+    [0.55, 0.03],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  const pot = new THREE.Group();
+  pot.position.set(-0.38, 0, 0.1);
+  model.add(pot);
+  shape(pot, new THREE.LatheGeometry(profile, 96), ceramic);
+  cylinder(pot, 0.7, 0.075, soil, [0, 1.06, 0]);
+  const foot = shape(
+    pot,
+    new THREE.TorusGeometry(0.6, 0.033, 12, 96),
+    graphite,
+    [0, 0.06, 0],
+  );
+  foot.rotation.x = Math.PI / 2;
+  for (let i = 0; i < 44; i++) {
+    const angle = i * 2.399963;
+    const radius = Math.sqrt((i + 1) / 44) * 0.64;
+    const grain = shape(
+      pot,
+      new THREE.IcosahedronGeometry(0.025 + (i % 4) * 0.008),
+      material(i % 3 ? "#514537" : "#8a8070", 0, 0.95),
+      [Math.cos(angle) * radius, 1.105, Math.sin(angle) * radius],
+    );
+    grain.scale.y = 0.5;
+  }
+  gardenPlant = new THREE.Group();
+  gardenPlant.position.y = 1.1;
+  pot.add(gardenPlant);
+  for (let i = 0; i < 7; i++) {
+    const angle = i * 2.399963;
+    const height = 0.45 + (i % 3) * 0.2;
+    const crown = new THREE.Group();
+    crown.position.set(Math.sin(angle) * 0.1, height, Math.cos(angle) * 0.1);
+    crown.rotation.y = angle;
+    crown.rotation.x = -0.45 - (i % 2) * 0.25;
+    gardenPlant.add(crown);
+    cable(
+      gardenPlant,
+      [
+        [0, 0, 0],
+        [0, height * 0.6, 0],
+        [crown.position.x, height, crown.position.z],
+      ],
+      "#527447",
+      0.015,
+    );
+    const length = 0.65 + (i % 3) * 0.15;
+    shape(
+      crown,
+      leafGeometry(length, 0.42 + (i % 2) * 0.13),
+      material(i % 2 ? "#275b35" : "#3d713c", 0.02, 0.65, {
+        clearcoat: 0,
+        specularIntensity: 0.3,
+        side: THREE.DoubleSide,
+      }),
+    );
+    cable(
+      crown,
+      [
+        [0, 0.01, 0],
+        [0, length * 0.23, length * 0.45],
+        [0, -length * 0.15, length],
+      ],
+      "#9aae69",
+      0.007,
+    );
+  }
+  const probe = new THREE.Group();
+  probe.position.set(0.47, 1.15, 0.32);
+  probe.rotation.z = -0.12;
+  pot.add(probe);
+  box(probe, [0.19, 0.71, 0.04], material("#195d51", 0.2, 0.45), [0, -0.1, 0]);
+  box(probe, [0.095, 0.09, 0.025], graphite, [0, 0.17, 0.032]);
+  for (const side of [-1, 1])
+    box(probe, [0.025, 0.35, 0.007], material("#bbab6c", 0.8, 0.3), [
+      side * 0.06,
+      -0.14,
+      0.025,
+    ]);
+  const monitor = new THREE.Group();
+  monitor.position.set(0.9, 0.16, 0.3);
+  model.add(monitor);
+  box(monitor, [0.78, 0.21, 1.15], graphite, [0, 0, 0]);
+  const controller = board(monitor, 0.55);
+  controller.position.y = 0.16;
+  for (const x of [-0.3, 0.3])
+    for (const z of [-0.46, 0.46]) screw(monitor, [x, 0.12, z], 0.035);
+  gardenIndicator = material("#b5e99b", 0.05, 0.26, {
+    emissive: "#75c966",
+    emissiveIntensity: 0.6,
+  });
+  shape(
+    monitor,
+    new THREE.SphereGeometry(0.035, 20, 12),
+    gardenIndicator,
+    [0.29, 0.13, 0.38],
+  );
+  cable(
+    model,
+    [
+      [0.11, 1.36, 0.45],
+      [0.6, 1.26, 0.64],
+      [0.78, 0.35, 0.76],
+      [0.9, 0.24, 0.72],
+    ],
+    "#6f9b87",
+    0.023,
+  );
+  return model;
+}
+
 /** Update the model and its concise editorial caption together at a reel transition. */
 function selectProject(key) {
   activeKey = key;
@@ -426,7 +750,7 @@ function selectProject(key) {
     .querySelector("#project-board")
     .replaceChildren(document.createTextNode(project.board), boardNote);
   document.querySelector("#project-index").textContent =
-    `0${Object.keys(projects).indexOf(key) + 1} / 03`;
+    `${String(Object.keys(projects).indexOf(key) + 1).padStart(2, "0")} / ${String(Object.keys(projects).length).padStart(2, "0")}`;
   const link = document.querySelector("#project-library");
   link.href = project.url;
   link.textContent = project.library + " ↗";
@@ -455,9 +779,7 @@ function advanceReel(delta) {
     return;
   }
   reelTime += delta;
-  const sequence = ["contact", "climate", "rover"].filter((key) =>
-    models.has(key),
-  );
+  const sequence = Object.keys(projects).filter((key) => models.has(key));
   const phase = reelTime % REEL_SECONDS;
   const nextIndex = Math.floor(reelTime / REEL_SECONDS) % sequence.length;
   if (nextIndex !== reelIndex || !models.has(activeKey)) {
@@ -490,10 +812,18 @@ function resize() {
   if (camera.aspect < 1.1) camera.position.multiplyScalar(1.14);
   camera.lookAt(
     0,
-    activeKey === "contact" ? 1.4 : activeKey === "climate" ? 1 : 0.65,
+    { contact: 1.4, climate: 1, rover: 0.65, arm: 1.35, garden: 1.15 }[
+      activeKey
+    ],
     0,
   );
-  camera.zoom = activeKey === "contact" ? 0.91 : 1.12;
+  camera.zoom = {
+    contact: 0.91,
+    climate: 1.12,
+    rover: 1.12,
+    arm: 0.98,
+    garden: 1.07,
+  }[activeKey];
   camera.updateProjectionMatrix();
   render();
 }
@@ -504,7 +834,12 @@ function render() {
   const current = models.get(activeKey);
   if (current)
     current.rotation.y =
-      (activeKey === "rover" ? 2.5 : -0.5) + Math.sin(elapsed * 0.16) * 0.28;
+      (activeKey === "rover"
+        ? 2.5
+        : ["arm", "garden"].includes(activeKey)
+          ? 0.6
+          : -0.5) +
+      Math.sin(elapsed * 0.16) * 0.28;
   if (contactPivot) {
     const openness = (1 - Math.cos(elapsed * 0.8)) / 2;
     contactPivot.rotation.x = -openness * 1.72;
@@ -517,6 +852,21 @@ function render() {
   wheels.forEach((wheel) => {
     wheel.rotation.x = elapsed * 0.22;
   });
+  if (armShoulder) {
+    armTurret.rotation.y = Math.sin(elapsed * 0.45) * 0.25;
+    armShoulder.rotation.z = -0.38 + Math.sin(elapsed * 0.65) * 0.16;
+    armElbow.rotation.z = 1.25 + Math.sin(elapsed * 0.65 + 0.8) * 0.24;
+    armWrist.rotation.z = 0.6 + Math.sin(elapsed * 0.65 + 1.6) * 0.18;
+    gripperFingers.forEach(({ finger, side }) => {
+      finger.rotation.z = side * (0.12 + (1 + Math.sin(elapsed * 1.15)) * 0.12);
+    });
+  }
+  if (gardenPlant) {
+    gardenPlant.rotation.z = Math.sin(elapsed * 0.75) * 0.025;
+    gardenPlant.rotation.x = Math.sin(elapsed * 0.6) * 0.018;
+    gardenIndicator.emissiveIntensity =
+      0.45 + (1 + Math.sin(elapsed * 1.2)) * 0.15;
+  }
   renderer.render(scene, camera);
 }
 
@@ -645,6 +995,15 @@ async function initialize() {
     rover.visible = false;
     models.set("rover", rover);
     scene.add(rover);
+    for (const [key, build] of [
+      ["arm", createArm],
+      ["garden", createGarden],
+    ]) {
+      const model = build();
+      model.visible = false;
+      models.set(key, model);
+      scene.add(model);
+    }
     new ResizeObserver(resize).observe(stage);
     new IntersectionObserver(
       (entries) => {
