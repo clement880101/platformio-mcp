@@ -3,6 +3,10 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
+const REEL_SECONDS = 6;
+const FADE_SECONDS = 0.35;
+const mobileRenderer = window.matchMedia("(max-width: 700px)").matches;
+
 const projects = {
   contact: {
     title: "The lid is the switch.",
@@ -66,7 +70,9 @@ const floatingParts = [];
 
 /** Create a shared physically lit material for the concept models. */
 function material(color, metalness = 0.5, roughness = 0.35, extra = {}) {
-  return new THREE.MeshStandardMaterial({
+  return new THREE.MeshPhysicalMaterial({
+    clearcoat: metalness > 0.6 ? 0.22 : 0.08,
+    clearcoatRoughness: 0.28,
     color,
     metalness,
     roughness,
@@ -96,7 +102,7 @@ function box(parent, dimensions, surface, position) {
   const geometry = new THREE.ExtrudeGeometry(outline, {
     depth: height - bevel * 2,
     bevelEnabled: true,
-    bevelSegments: 2,
+    bevelSegments: 4,
     steps: 1,
     bevelSize: bevel,
     bevelThickness: bevel,
@@ -106,7 +112,7 @@ function box(parent, dimensions, surface, position) {
   return shape(parent, geometry, surface, position);
 }
 
-function cylinder(parent, radius, height, surface, position, segments = 48) {
+function cylinder(parent, radius, height, surface, position, segments = 64) {
   return shape(
     parent,
     new THREE.CylinderGeometry(radius, radius, height, segments),
@@ -115,17 +121,99 @@ function cylinder(parent, radius, height, surface, position, segments = 48) {
   );
 }
 
+/** Shared silkscreen and routing keep small electronics legible at presentation scale. */
+function boardTexture() {
+  const surface = document.createElement("canvas");
+  surface.width = 512;
+  surface.height = 832;
+  const ctx = surface.getContext("2d");
+  ctx.fillStyle = "#0d443c";
+  ctx.fillRect(0, 0, 512, 832);
+  ctx.strokeStyle = "#2b7160";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 12; i++) {
+    const y = 75 + i * 53;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(256 + side * 205, y);
+      ctx.lineTo(256 + side * 150, y);
+      ctx.lineTo(256 + side * 105, y + 24);
+      ctx.lineTo(256 + side * 105, y + 60);
+      ctx.stroke();
+    }
+  }
+  ctx.strokeStyle = "#c9d9c5";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(69, 105, 374, 410);
+  ctx.font = "18px monospace";
+  ctx.fillStyle = "#c9d9c5";
+  ctx.fillText("ESP32", 175, 580);
+  ctx.font = "13px monospace";
+  ctx.fillText("3V3  GND  TX  RX", 150, 700);
+  for (let i = 0; i < 9; i++) {
+    ctx.fillText(String(i + 1).padStart(2, "0"), 12, 83 + i * 82);
+    ctx.fillText(String(i + 10), 478, 83 + i * 82);
+  }
+  const texture = new THREE.CanvasTexture(surface);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+  return texture;
+}
+let pcbTexture;
+
+/** Machined fasteners catch the key light without adding interface clutter. */
+function screw(parent, position, radius = 0.055) {
+  const head = cylinder(
+    parent,
+    radius,
+    0.035,
+    material("#a4b2c0", 0.94, 0.24),
+    position,
+    24,
+  );
+  box(
+    head,
+    [radius * 1.3, 0.004, radius * 0.22],
+    material("#14202c", 0.4, 0.5),
+    [0, 0.019, 0],
+  );
+  return head;
+}
+
 /** Build a populated concept PCB with shield, USB socket, pin headers and traces. */
 function board(parent, scale = 1) {
   const group = new THREE.Group();
   group.scale.setScalar(scale);
   parent.add(group);
-  const pcb = material("#146255", 0.3, 0.45);
+  const pcb = material("#0d443c", 0.12, 0.45);
   const metal = material("#bac7d5", 0.85, 0.27);
   const chip = material("#101925", 0.35, 0.5);
   const gold = material("#d5a563", 0.8, 0.28);
   box(group, [1.05, 0.065, 1.7], pcb, [0, 0, 0]);
+  pcbTexture ??= boardTexture();
+  const silkscreen = shape(
+    group,
+    new THREE.PlaneGeometry(1.04, 1.69),
+    material("#ffffff", 0.12, 0.48, { map: pcbTexture }),
+    [0, 0.034, 0],
+  );
+  silkscreen.rotation.x = -Math.PI / 2;
+  silkscreen.castShadow = false;
   box(group, [0.69, 0.17, 0.75], metal, [0, 0.12, -0.25]);
+  box(
+    group,
+    [0.57, 0.003, 0.62],
+    material("#7e8d99", 0.95, 0.38),
+    [0, 0.207, -0.25],
+  );
+  for (let i = 0; i < 6; i++) {
+    box(group, [0.055, 0.04, 0.13], metal, [-0.22 + i * 0.088, 0.07, 0.55]);
+    box(group, [0.06, 0.045, 0.065], material("#9d865e", 0.45, 0.5), [
+      -0.22 + i * 0.088,
+      0.072,
+      0.56,
+    ]);
+  }
   box(group, [0.3, 0.16, 0.29], metal, [0, 0.1, 0.88]);
   box(group, [0.23, 0.09, 0.02], chip, [0, 0.11, 1.032]);
   box(group, [0.33, 0.1, 0.28], chip, [0, 0.09, 0.39]);
@@ -173,13 +261,14 @@ function oledTexture() {
   ctx.stroke();
   const texture = new THREE.CanvasTexture(surface);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
   return texture;
 }
 
 /** Layer a vented sensor enclosure, electronics and floating screen into an exploded view. */
 function createClimate() {
   const model = new THREE.Group();
-  const shell = material("#243b48", 0.7, 0.3);
+  const shell = material("#253e4b", 0.82, 0.26);
   const dark = material("#0e1822", 0.35, 0.5);
   const steel = material("#b7d0d3", 0.85, 0.25);
   box(model, [2.1, 0.18, 2.3], shell, [0, 0.2, 0]);
@@ -207,17 +296,30 @@ function createClimate() {
   screen.position.set(0, 1.69, 0.11);
   screen.rotation.x = 0.2;
   box(screen, [1.88, 0.12, 1.12], dark, [0, 0, 0]);
+  const screenTexture = oledTexture();
   const display = shape(
     screen,
     new THREE.PlaneGeometry(1.65, 0.84),
-    new THREE.MeshBasicMaterial({ map: oledTexture() }),
+    new THREE.MeshPhysicalMaterial({
+      map: screenTexture,
+      emissiveMap: screenTexture,
+      emissive: "#ffffff",
+      emissiveIntensity: 0.3,
+      roughness: 0.19,
+      metalness: 0.05,
+      clearcoat: 1,
+      clearcoatRoughness: 0.12,
+    }),
     [0, 0.065, 0],
   );
   display.rotation.x = -Math.PI / 2;
+  for (const x of [-0.86, 0.86])
+    for (const z of [-0.47, 0.47]) screw(screen, [x, 0.073, z], 0.032);
   floatingParts.push({ part: screen, height: 1.69, phase: 2 });
   for (const x of [-0.85, 0.85])
     for (const z of [-0.89, 0.89]) {
       cylinder(model, 0.047, 0.55, steel, [x, 0.51, z]);
+      screw(model, [x, 0.805, z]);
     }
   return model;
 }
@@ -241,6 +343,24 @@ function createRover() {
     hub.rotation.z = Math.PI / 2;
     const axle = cylinder(wheel, 0.13, 0.41, steel, [0, 0, 0]);
     axle.rotation.z = Math.PI / 2;
+    for (const face of [-1, 1]) {
+      const sidewall = shape(
+        wheel,
+        new THREE.TorusGeometry(0.46, 0.045, 12, 64),
+        black,
+        [face * 0.168, 0, 0],
+      );
+      sidewall.rotation.y = Math.PI / 2;
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3;
+        const bolt = screw(
+          wheel,
+          [face * 0.204, Math.cos(angle) * 0.255, Math.sin(angle) * 0.255],
+          0.027,
+        );
+        bolt.rotation.z = (-face * Math.PI) / 2;
+      }
+    }
     for (let i = 0; i < 20; i++) {
       const angle = (i / 20) * Math.PI * 2;
       const tread = box(wheel, [0.38, 0.085, 0.1], black, [
@@ -257,8 +377,10 @@ function createRover() {
   const pcb = board(model, 0.88);
   pcb.position.set(0, 0.83, 0.25);
   for (const x of [-0.63, 0.63])
-    for (const z of [-0.78, 0.85])
+    for (const z of [-0.78, 0.85]) {
       cylinder(model, 0.045, 0.3, gold, [x, 0.75, z]);
+      screw(model, [x, 0.91, z], 0.05);
+    }
   box(model, [0.55, 0.06, 0.45], material("#784043"), [0.5, 0.78, -0.66]);
   box(model, [0.23, 0.12, 0.25], black, [0.5, 0.85, -0.66]);
   box(model, [0.74, 0.45, 0.15], material("#224c65"), [0, 0.94, -1.16]);
@@ -283,7 +405,7 @@ function createRover() {
     ]);
     shape(
       model,
-      new THREE.TubeGeometry(curve, 16, 0.022, 6, false),
+      new THREE.TubeGeometry(curve, 32, 0.022, 10, false),
       material(side > 0 ? "#bb6f36" : "#326b88"),
     );
   }
@@ -336,13 +458,17 @@ function advanceReel(delta) {
   const sequence = ["contact", "climate", "rover"].filter((key) =>
     models.has(key),
   );
-  const phase = reelTime % 14;
-  const nextIndex = Math.floor(reelTime / 14) % sequence.length;
+  const phase = reelTime % REEL_SECONDS;
+  const nextIndex = Math.floor(reelTime / REEL_SECONDS) % sequence.length;
   if (nextIndex !== reelIndex || !models.has(activeKey)) {
     reelIndex = nextIndex;
     selectProject(sequence[nextIndex]);
   }
-  const opacity = phase > 13.2 ? (14 - phase) / 0.8 : Math.min(1, phase / 0.8);
+  const linearOpacity =
+    phase > REEL_SECONDS - FADE_SECONDS
+      ? (REEL_SECONDS - phase) / FADE_SECONDS
+      : Math.min(1, phase / FADE_SECONDS);
+  const opacity = linearOpacity * linearOpacity * (3 - 2 * linearOpacity);
   canvas.style.opacity = opacity;
   document.querySelector(".project-details").style.opacity = opacity;
 }
@@ -364,10 +490,10 @@ function resize() {
   if (camera.aspect < 1.1) camera.position.multiplyScalar(1.14);
   camera.lookAt(
     0,
-    activeKey === "contact" ? 1.25 : activeKey === "climate" ? 1 : 0.65,
+    activeKey === "contact" ? 1.4 : activeKey === "climate" ? 1 : 0.65,
     0,
   );
-  camera.zoom = activeKey === "contact" ? 1 : 1.12;
+  camera.zoom = activeKey === "contact" ? 0.91 : 1.12;
   camera.updateProjectionMatrix();
   render();
 }
@@ -380,7 +506,7 @@ function render() {
     current.rotation.y =
       (activeKey === "rover" ? 2.5 : -0.5) + Math.sin(elapsed * 0.16) * 0.28;
   if (contactPivot) {
-    const openness = (1 - Math.cos(elapsed * 0.42)) / 2;
+    const openness = (1 - Math.cos(elapsed * 0.8)) / 2;
     contactPivot.rotation.x = -openness * 1.72;
     if (contactLight)
       contactLight.emissiveIntensity = openness < 0.08 ? 2.8 : 0.1;
@@ -460,11 +586,15 @@ async function initialize() {
       canvas,
       alpha: true,
       antialias: true,
-      powerPreference: "low-power",
+      powerPreference: "default",
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(
+      mobileRenderer
+        ? Math.min(window.devicePixelRatio, 1.75)
+        : Math.min(Math.max(window.devicePixelRatio, 1.75), 2.5),
+    );
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.05;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     scene = new THREE.Scene();
@@ -472,14 +602,15 @@ async function initialize() {
     const pmrem = new THREE.PMREMGenerator(renderer);
     const environment = new RoomEnvironment();
     scene.environment = pmrem.fromScene(environment, 0.04).texture;
-    scene.environmentIntensity = 0.9;
+    scene.environmentIntensity = 1.15;
     environment.dispose();
     pmrem.dispose();
-    scene.add(new THREE.HemisphereLight("#c5e5ff", "#16243c", 1.4));
-    const key = new THREE.DirectionalLight("#d4e9ff", 3);
+    scene.add(new THREE.HemisphereLight("#e2efff", "#172338", 0.75));
+    const key = new THREE.DirectionalLight("#f0f5ff", 4);
     key.position.set(3, 7, 5);
     key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
+    const shadowSize = mobileRenderer ? 1024 : 2048;
+    key.shadow.mapSize.set(shadowSize, shadowSize);
     Object.assign(key.shadow.camera, {
       left: -4,
       right: 4,
@@ -489,13 +620,13 @@ async function initialize() {
       far: 18,
     });
     key.shadow.bias = -0.0005;
-    key.shadow.normalBias = 0.035;
+    key.shadow.normalBias = 0.018;
     key.shadow.radius = 4;
     scene.add(key);
-    const rim = new THREE.DirectionalLight("#448eff", 3);
+    const rim = new THREE.DirectionalLight("#76acff", 2.5);
     rim.position.set(-4, 3, -3);
     scene.add(rim);
-    const warm = new THREE.DirectionalLight("#ffd1a8", 1.5);
+    const warm = new THREE.DirectionalLight("#ffe0bd", 2);
     warm.position.set(3, 2, -4);
     scene.add(warm);
     const floor = shape(
@@ -539,12 +670,27 @@ async function initialize() {
       );
       contactModel = gltf.scene;
       const remove = [];
+      const upgradedMaterials = new Map();
       contactModel.traverse((object) => {
         if (object.name === "StudioFloor" || object.isCamera || object.isLight)
           remove.push(object);
         if (object.isMesh) {
           object.castShadow = true;
           object.receiveShadow = true;
+          if (object.material && !Array.isArray(object.material)) {
+            const source = object.material;
+            if (!upgradedMaterials.has(source)) {
+              const finish = new THREE.MeshPhysicalMaterial();
+              THREE.MeshStandardMaterial.prototype.copy.call(finish, source);
+              finish.defines = { STANDARD: "", PHYSICAL: "" };
+              finish.clearcoat = source.metalness > 0.5 ? 0.25 : 0.1;
+              finish.clearcoatRoughness = 0.22;
+              if (source.name === "Graphite") finish.roughness = 0.32;
+              if (source.name === "Copper") finish.roughness = 0.23;
+              upgradedMaterials.set(source, finish);
+            }
+            object.material = upgradedMaterials.get(source);
+          }
         }
         if (object.material?.name === "AmberDiffuser")
           contactLight = object.material;
