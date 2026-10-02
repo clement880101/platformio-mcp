@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
-const REEL_SECONDS = 6;
+const REEL_SECONDS = 3;
 const FADE_SECONDS = 0.35;
 const mobileRenderer = window.matchMedia("(max-width: 700px)").matches;
 
