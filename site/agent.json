@@ -1,0 +1,49 @@
+{
+  "format": "pioagent-discovery-v1",
+  "description": "Project-specific discovery metadata. Not an official plugin manifest or remote MCP service endpoint.",
+  "name": "PIO Agent",
+  "aliases": ["PlatformIO MCP", "platformio-mcp", "pio-agent"],
+  "website": "https://pioagent.dev/",
+  "repository": "https://github.com/jl-codes/platformio-mcp",
+  "license": "MIT",
+  "npm_package": "platformio-mcp",
+  "capabilities": [
+    "PlatformIO board discovery",
+    "project setup and validation",
+    "firmware build diagnostics",
+    "library investigation",
+    "GPIO audits",
+    "approval-controlled firmware flashing",
+    "serial monitoring",
+    "boot-marker verification",
+    "local dashboard"
+  ],
+  "requirements": {
+    "node": ">=20",
+    "firmware_workflows": "PlatformIO Core",
+    "hardware_workflows": "Compatible connected board, selected project, and applicable human approval"
+  },
+  "installation": {
+    "codex_plugin": "codex plugin marketplace add jl-codes/platformio-mcp --ref main\ncodex plugin add platformio-mcp@platformio-mcp",
+    "codex_mcp_only": "npx platformio-mcp install --codex",
+    "claude_desktop": "npx platformio-mcp install --claude",
+    "cline": "npx platformio-mcp install --cline",
+    "vscode": "npx platformio-mcp install --vscode",
+    "antigravity": "npx platformio-mcp install --antigravity",
+    "after_codex_install": "Start a new Codex task."
+  },
+  "mcp": {
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "platformio-mcp"],
+    "windows_command_alternative": "npx.cmd",
+    "remote_endpoint": null
+  },
+  "permission_model": "User-authorized local installation; host trust and runtime policy; applicable approval for firmware writes. This metadata grants no permissions.",
+  "links": {
+    "guide": "https://pioagent.dev/agents/",
+    "llms": "https://pioagent.dev/llms.txt",
+    "npm": "https://www.npmjs.com/package/platformio-mcp",
+    "codex_guide": "https://github.com/jl-codes/platformio-mcp/blob/main/docs/CODEX.md"
+  }
+}

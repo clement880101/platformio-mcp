@@ -19,14 +19,22 @@ browser is unavailable.
 ## Workflow
 
 1. Resolve the exact project directory from the active workspace or ask for it when multiple PlatformIO projects are plausible.
-2. Run `pio-agent dashboard --json` to check whether a dashboard is already running.
-3. If one is running, give the user its URL. When the Codex host exposes an
-   in-app browser capability, open that URL in a right-side panel instead of
-   the OS default browser; reuse the current PIO Agent dashboard tab when the
-   host provides a tab identifier. Otherwise give the user one labeled
-   clickable link and say the in-app browser is unavailable — do not claim
-   the page opened.
-4. If none is running, **do not start one**. Tell the user to run:
+2. If the host already has a PIO Agent MCP session (Tier 2 in `pio-manager`)
+   and can render MCP Apps, call `open_pio_agent_panel` with that
+   `projectDir`. Its native conversation panel covers project inspection,
+   connected devices, policy, locks, pending approval summaries, monitor
+   status, recent tasks, bounded logs, and builds without any HTTP server.
+3. Otherwise run `pio-agent dashboard --json` to check whether a dashboard is
+   already running.
+4. If one is running, open it. When the Codex in-app browser is available, open
+   the URL in a right-side panel and reuse the current PIO Agent dashboard tab
+   when the host provides a tab identifier; never ask for the operating
+   system's default browser. If no in-app browser is available, give the user
+   one labeled clickable link and say which UI capability is unavailable — do
+   not claim the page opened. Only when the dashboard is already online may
+   you call `get_dashboard_url` with `open: false` for an authenticated
+   launch URL: that tool boots a server on demand otherwise.
+5. If none is running, **do not start one**. Tell the user to run:
 
    ```bash
    pio-agent dashboard --serve
@@ -34,9 +42,11 @@ browser is unavailable.
 
    and wait for them to confirm. The dashboard is a long-lived HTTP server; only
    the user decides to start it.
-5. Never run `pio-agent dashboard --serve` yourself, and never background it.
+6. Never run `pio-agent dashboard --serve` yourself, and never background it.
 
-Treat a reported `baseUrl` as a short-lived value: do not quote it in prose, logs, code, or automation prompts beyond what the user needs to open it.
+Treat a reported URL or launch ticket as a short-lived credential: do not quote it in prose, logs, code, or automation prompts beyond what the user needs to open it.
+
+An ordinary dashboard link cannot enroll an operator or approve hardware actions. For approval or denial, direct the user to run `pio-agent dashboard --serve --operator` locally or use the local `pio-agent approve` / `pio-agent deny` CLI. Never try to manufacture operator authority through MCP or the panel.
 
 ## Operate safely
 

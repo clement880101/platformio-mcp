@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `install_library` / `lib install` accept PlatformIO's canonical `owner/name`
   identifier (`bblanchon/ArduinoJson`), and `validateSerialPort` accepts
   `/dev/serial/by-id/...`, `/dev/serial/by-path/...` and `/dev/ttyAMA0`.
+- A native Codex conversation panel for project, device, task, log, policy,
+  lock, approval, and monitor visibility, backed by the existing local MCP
+  server and its policy controls.
+- A project-first onboarding skill and public listing metadata for PIO Agent.
 
 ### Changed
 
@@ -53,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   holds a claim on the port and is `safeToAutoRetry: false`. This `diagnostic`
   object ships inside MCP `upload_firmware` / `upload_filesystem` results, so
   consumers matching the old string must update.
+- The Codex plugin bundles its MCP Apps resource and panel assets while retaining
+  the standalone dashboard and headless tool workflows.
 
 ### Fixed
 
@@ -118,11 +124,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Release status
 
-3.1.0 is prepared but not published. Native wheel installation on five hosts and
-amd64/arm64 container builds passed on the recorded pre-release source. Full parity,
-required physical acceptance, publisher setup and registry-installed verification
-remain incomplete. See [distribution readiness](docs/DISTRIBUTION_READINESS.md)
-and the [compatibility guide](docs/package-compatibility.md) for current limits.
+The canonical 3.1.0 npm package and GitHub release were published on
+2026-09-25. See [distribution readiness](docs/DISTRIBUTION_READINESS.md)
+and the [compatibility guide](docs/package-compatibility.md) for the status of
+other namespaces and parity acceptance.
 
 ## [3.0.0] - 2026-09-08
 

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PIO Agent — Agent discovery and installation guide</title>
+    <meta
+      name="description"
+      content="Discover PIO Agent: local Codex plugin and PlatformIO MCP server. Capabilities, requirements, installation commands, stdio configuration, and permissions for AI agents."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#080b10" />
+    <link rel="canonical" href="https://pioagent.dev/agents/" />
+    <link
+      rel="alternate"
+      type="text/plain"
+      href="/llms.txt"
+      title="Agent-readable overview"
+    />
+    <link
+      rel="alternate"
+      type="application/json"
+      href="/agent.json"
+      title="Project discovery descriptor"
+    />
+    <link rel="icon" href="/assets/ant-robot.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#guide">Skip to guide</a>
+    <header class="header wrap">
+      <a class="brand" href="/" aria-label="PIO Agent home"
+        ><img
+          class="brand-robot"
+          src="/assets/ant-robot.png"
+          alt=""
+          width="48"
+          height="48"
+        /><span class="brand-wordmark"
+          >PIO <span>AGENT</span><small>HARDWARE INTELLIGENCE</small></span
+        ></a
+      ><a class="text-link guide-home" href="/">Back to the idea lab</a>
+    </header>
+    <main class="agent-guide wrap" id="guide">
+      <p class="eyebrow">DISCOVERY / INSTALLATION / CAPABILITIES</p>
+      <h1>The agent field guide.</h1>
+      <p class="guide-intro">
+        PIO Agent is an open-source local Codex plugin, MCP server, and CLI for
+        PlatformIO embedded development. The canonical package and plugin ID are
+        <code>platformio-mcp</code>.
+      </p>
+      <div class="guide-formats">
+        <a href="/llms.txt">Plain text · llms.txt</a
+        ><a href="/agent.json">JSON discovery descriptor</a
+        ><a href="https://github.com/jl-codes/platformio-mcp"
+          >Source repository</a
+        >
+      </div>
+      <section>
+        <h2>Where it fits</h2>
+        <p>
+          Use it for PlatformIO board discovery, project setup, firmware builds,
+          structured diagnostics, library investigation, GPIO audits, approved
+          uploads, serial monitoring, and runtime verification. Board and
+          framework compatibility comes from the selected PlatformIO platform.
+        </p>
+        <p>
+          The full Codex plugin bundles workflow skills and a local dashboard
+          flow. MCP-only setup exposes the server tools without those plugin
+          skills.
+        </p>
+      </section>
+      <section>
+        <h2>Install the Codex plugin</h2>
+        <p>
+          Requires Node.js 20 or newer. Firmware workflows need PlatformIO Core;
+          flashing and physical runtime checks also need compatible connected
+          hardware. Installation changes local configuration and requires user
+          authorization.
+        </p>
+        <pre><code>codex plugin marketplace add jl-codes/platformio-mcp --ref main
+codex plugin add platformio-mcp@platformio-mcp</code></pre>
+        <p>
+          Start a new Codex task after installation, then ask:
+          <q>Inspect this PlatformIO project and list the connected boards.</q>
+        </p>
+        <p>
+          <a
+            href="https://github.com/jl-codes/platformio-mcp/blob/main/docs/CODEX.md"
+            >Complete Codex installation, update, and troubleshooting guide</a
+          >
+        </p>
+      </section>
+      <section>
+        <h2>Other host installers</h2>
+        <pre><code>npx platformio-mcp install --codex       # MCP only
+npx platformio-mcp install --claude      # Claude Desktop
+npx platformio-mcp install --cline
+npx platformio-mcp install --vscode
+npx platformio-mcp install --antigravity</code></pre>
+        <p>
+          Restart the host if needed. The runtime executes locally; this website
+          does not offer a remote MCP endpoint.
+        </p>
+      </section>
+      <section>
+        <h2>Generic MCP client configuration</h2>
+        <p>
+          For clients that accept an <code>mcpServers</code> configuration
+          object:
+        </p>
+        <pre><code>{
+  "mcpServers": {
+    "platformio": {
+      "command": "npx",
+      "args": ["-y", "platformio-mcp"]
+    }
+  }
+}</code></pre>
+        <p>
+          Transport: stdio. On Windows, some hosts need <code>npx.cmd</code>.
+          Hosts with a different configuration format should use their own MCP
+          setup instructions.
+        </p>
+      </section>
+      <section>
+        <h2>Capabilities and boundaries</h2>
+        <div class="guide-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>What the agent gets</th>
+                <th>What it needs</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Inspect</td>
+                <td>Board/device discovery and project readiness</td>
+                <td>Local project and host access</td>
+              </tr>
+              <tr>
+                <td>Build</td>
+                <td>PlatformIO compilation and structured diagnostics</td>
+                <td>PlatformIO Core and target dependencies</td>
+              </tr>
+              <tr>
+                <td>Flash</td>
+                <td>Firmware upload with runtime policy checks</td>
+                <td>
+                  Explicit project/device target and applicable human approval
+                </td>
+              </tr>
+              <tr>
+                <td>Verify</td>
+                <td>Bounded serial evidence and expected boot markers</td>
+                <td>Connected board, port access, and expected behavior</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          A successful build does not prove that a physical device works.
+          Existing policy, approval, target-binding, and locking controls remain
+          in force.
+        </p>
+      </section>
+      <section>
+        <h2>Source and distribution</h2>
+        <p>
+          <a href="https://www.npmjs.com/package/platformio-mcp">npm</a>
+          contains published package versions. The
+          <a
+            href="https://github.com/jl-codes/platformio-mcp/blob/main/plugins/platformio-mcp/.codex-plugin/plugin.json"
+            >plugin manifest</a
+          >
+          and
+          <a
+            href="https://github.com/jl-codes/platformio-mcp/blob/main/.agents/plugins/marketplace.json"
+            >repository marketplace</a
+          >
+          describe the source distribution; repository main can be ahead of a
+          release.
+        </p>
+        <p>
+          This guide and its JSON descriptor document the project. They are not
+          an official directory listing, do not automatically install a plugin,
+          and grant no tool or hardware permissions.
+        </p>
+      </section>
+    </main>
+    <footer class="footer wrap">
+      <p>PIO Agent · MIT licensed · Independently developed.</p>
+      <div class="footer-links">
+        <a href="/">Home</a><a href="/llms.txt">llms.txt</a
+        ><a href="/support/">Support</a><a href="/privacy/">Privacy</a
+        ><a href="/terms/">Terms</a>
+      </div>
+    </footer>
+  </body>
+</html>

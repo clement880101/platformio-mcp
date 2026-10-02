@@ -1,0 +1,3 @@
+Three.js 0.180.0 is distributed under the MIT license; see three/LICENSE.
+Only the browser modules required by the PIO Agent concept workbench are vendored.
+The copper-contact GLB is reused from the user's lid-3d project.

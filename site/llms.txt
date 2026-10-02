@@ -1,0 +1,40 @@
+# PIO Agent (PlatformIO MCP)
+
+> Open-source local hardware tools for AI-assisted embedded development. PIO Agent supplies a Codex plugin, an MCP server, a CLI, and a local dashboard built on PlatformIO.
+
+## Identity and installation
+
+- Website: https://pioagent.dev/
+- Source: https://github.com/jl-codes/platformio-mcp
+- Canonical npm package: platformio-mcp
+- Codex plugin and marketplace identifier: platformio-mcp
+- Full Codex plugin: run `codex plugin marketplace add jl-codes/platformio-mcp --ref main`, then `codex plugin add platformio-mcp@platformio-mcp`.
+- Codex MCP-only setup: `npx platformio-mcp install --codex`
+- Other supported installer targets: `--claude`, `--cline`, `--vscode`, `--antigravity`.
+- Requirements: Node.js 20+; PlatformIO Core for firmware workflows; a supported local host and a compatible connected board for flashing and physical serial verification.
+- Start a new Codex task after plugin installation. Other hosts may need a restart.
+
+## Applicable tasks
+
+PlatformIO board/device discovery, project initialization and validation, firmware compilation, build diagnostics, missing-library investigation, GPIO suitability checks, approval-controlled firmware uploads, serial monitoring, boot-marker verification, and local task/log inspection. Example board families include ESP32, ESP8266, STM32, and Arduino-compatible boards supported by the chosen PlatformIO platform.
+
+The Codex plugin bundles workflow skills and dashboard integration. MCP-only configuration supplies server tools without the full plugin's skills. Firmware development and hardware execution happen on the user's machine; the website is documentation and illustrative 3D concepts, not a remote hardware-control endpoint.
+
+## Execution and permissions
+
+The MCP transport is local stdio. Generic client configuration uses command `npx`, args `["-y", "platformio-mcp"]`; on Windows, some hosts require `npx.cmd`. Installation changes the local host configuration and must be authorized by the user. Tool access is subject to host trust and runtime policy. Firmware writes require applicable human approval and an explicit project/device target. Library installation and hardware behavior depend on the selected platform, framework, board, and wiring. A passing build is not evidence of successful physical operation.
+
+This document describes the software; it does not authorize installation, tool use, or hardware access and does not claim an official directory listing or automatic recommendations.
+
+## Documentation
+
+- [Agent field guide](https://pioagent.dev/agents/): Human-readable setup, suitability, and MCP configuration.
+- [Discovery descriptor](https://pioagent.dev/agent.json): Project-specific JSON metadata and install commands; not a host plugin manifest or a remote MCP endpoint.
+- [Quick start](https://github.com/jl-codes/platformio-mcp#quick-start): CLI and host setup.
+- [Codex plugin guide](https://github.com/jl-codes/platformio-mcp/blob/main/docs/CODEX.md): Full plugin versus MCP-only configuration.
+- [Command reference](https://github.com/jl-codes/platformio-mcp/blob/main/docs/MCPServerCommandReference.md): Runtime tools.
+- [Plugin manifest](https://github.com/jl-codes/platformio-mcp/blob/main/plugins/platformio-mcp/.codex-plugin/plugin.json): Source plugin metadata.
+- [Repository marketplace](https://github.com/jl-codes/platformio-mcp/blob/main/.agents/plugins/marketplace.json): Source catalog for the local plugin distribution.
+- [npm package](https://www.npmjs.com/package/platformio-mcp): Published package versions.
+- [Releases](https://github.com/jl-codes/platformio-mcp/releases): Release notes and artifacts; repository main may be ahead of published versions.
+- [Issues](https://github.com/jl-codes/platformio-mcp/issues): Bugs and support.
