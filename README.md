@@ -6,15 +6,13 @@
 
 PIO Agent is the open-source, agent-first hardware execution layer for embedded development, built on the PlatformIO MCP runtime.
 
-## 3.1.0 development status
+## Release status
 
-The parity branch prepares an unreleased 3.1.0 version with optional reference tool
-aliases, owned serial workflows, retained flash, OTA and expanded distribution
-candidates. Existing published installations remain 3.0.0. See the
-[unreleased changelog](CHANGELOG.md#310---unreleased),
-[compatibility guide](docs/package-compatibility.md), and
-[distribution readiness](docs/DISTRIBUTION_READINESS.md) for implemented behavior,
-remaining acceptance, and which package names are prepared versus published.
+The canonical 3.1.0 runtime is published. The 3.2.0 candidate adds a native
+Codex panel and public plugin listing metadata. See the
+[changelog](CHANGELOG.md), [compatibility guide](docs/package-compatibility.md),
+and [distribution readiness](docs/DISTRIBUTION_READINESS.md) for implemented
+behavior and the publication status of each package name.
 
 ## Brand and Compatibility
 
@@ -112,7 +110,7 @@ npx -y platformio-mcp install --codex-plugin
 
 Start a new Codex task after installation. The legacy `install --codex` command remains available for MCP-only configuration. See the [full Codex Plugin guide](docs/CODEX.md) for update, uninstall, browser fallback, policy, automation, and rollback details.
 
-The plugin release gates run on Windows, macOS, and Linux, exercise the authenticated dashboard in Chromium, validate the bundled runtime and 44-tool registry, and keep physical-board evidence in a separate manual workflow. That workflow uploads only bounded, sanitized evidence; raw hardware logs stay on the self-hosted runner. See the [release and validation guide](docs/CODEX_PLUGIN_RELEASE.md).
+The plugin release gates run on Windows, macOS, and Linux, exercise the authenticated dashboard in Chromium, validate the bundled runtime and public tool registry, and keep physical-board evidence in a separate manual workflow. That workflow uploads only bounded, sanitized evidence; raw hardware logs stay on the self-hosted runner. See the [release and validation guide](docs/CODEX_PLUGIN_RELEASE.md).
 
 For headless verification and status inspection, the same CLI also provides `plugin validate`, `target-resolve`, `monitor-status`, `monitor-health`, `task-history`, `approval-status`, and `pending-approvals`. Run `platformio-mcp --help` for bounded options and JSON output support.
 

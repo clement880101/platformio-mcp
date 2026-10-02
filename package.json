@@ -1,7 +1,7 @@
 {
   "name": "platformio-mcp",
   "mcpName": "io.github.jl-codes/platformio-mcp",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "PIO Agent: a PlatformIO MCP server and visual control plane for AI-assisted embedded development across 1000+ boards.",
   "type": "module",
   "main": "build/index.js",
@@ -86,6 +86,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",
