@@ -18,7 +18,14 @@ import path from "node:path";
 const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "pio-monitor-"));
 process.env.PIO_MCP_DATA_DIR = TEST_DATA_DIR;
 
-afterAll(() => fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true }));
+afterAll(() =>
+  fs.rmSync(TEST_DATA_DIR, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 100,
+  }),
+);
 
 // killPioMonitorByPort verifies the monitor's process identity before and
 // after a real SIGKILL, so driving it through a genuinely spawned-and-killed

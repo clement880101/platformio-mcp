@@ -13894,6 +13894,8 @@ function inspectProcessIdentity(pid) {
       "Invalid process ID.",
       "PROCESS_IDENTITY_INVALID"
     );
+  if (pid === process.pid && ownProcessIdentity)
+    return { status: "running", identity: ownProcessIdentity };
   try {
     let startToken;
     if (process.platform === "linux") {
@@ -13923,8 +13925,8 @@ function inspectProcessIdentity(pid) {
         ],
         {
           encoding: "utf8",
-          // Windows PowerShell cold startup can exceed three seconds on loaded hosts.
-          timeout: 1e4,
+          // Windows PowerShell cold startup can be heavily delayed on loaded CI hosts.
+          timeout: WINDOWS_IDENTITY_TIMEOUT_MS,
           maxBuffer: 8192,
           windowsHide: true,
           stdio: ["ignore", "pipe", "pipe"]
@@ -13948,10 +13950,9 @@ function inspectProcessIdentity(pid) {
       ))
         return { status: "unknown" };
     } else return { status: "unknown" };
-    return {
-      status: "running",
-      identity: { pid, platform: process.platform, startToken }
-    };
+    const identity = { pid, platform: process.platform, startToken };
+    if (pid === process.pid) ownProcessIdentity = identity;
+    return { status: "running", identity };
   } catch {
     try {
       process.kill(pid, 0);
@@ -13969,10 +13970,12 @@ function compareProcessIdentity(owner, observation) {
     return "unknown";
   return owner.startToken === observation.identity.startToken ? "alive" : "stale";
 }
+var WINDOWS_IDENTITY_TIMEOUT_MS, ownProcessIdentity;
 var init_process_identity = __esm({
   "src/core/devices/process-identity.ts"() {
     "use strict";
     init_errors2();
+    WINDOWS_IDENTITY_TIMEOUT_MS = 3e4;
   }
 });
 
