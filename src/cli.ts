@@ -258,6 +258,7 @@ export const OPERATION_COMMANDS = new Set([
   "flash",
   "upload-fs",
   "init",
+  "target-resolve",
   "project",
   "lib",
   "agent-build-diagnose",

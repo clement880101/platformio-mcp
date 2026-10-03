@@ -1,4 +1,5 @@
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getSystemInfo } from "../../tools/projects.js";
 import {
@@ -9,6 +10,29 @@ import {
 import { asBoolean, asString, parseNumberOption } from "../args.js";
 import { PlatformIOError } from "../../utils/errors.js";
 import type { CommandHandler } from "./types.js";
+
+/**
+ * Resolves a shipped support asset from source/compiled or bundled layouts.
+ *
+ * @param segments - Path below the package root.
+ * @returns Existing absolute support-asset path.
+ */
+function resolveSupportAsset(...segments: string[]): string {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path.resolve(currentDir, "..", ...segments),
+    path.resolve(currentDir, "..", "..", "..", ...segments),
+  ];
+  const resolved = candidates.find((candidate) => existsSync(candidate));
+  if (!resolved) {
+    throw new PlatformIOError(
+      `Required runtime asset is missing: ${segments.join("/")}`,
+      "RUNTIME_ASSET_MISSING",
+      { candidates },
+    );
+  }
+  return resolved;
+}
 
 export const systemInfo: CommandHandler = async () => getSystemInfo();
 
@@ -114,12 +138,7 @@ async function runInstallSubcommand(rawArgs: string[]) {
     throw new Error("Usage: install --<cline|claude|vscode|antigravity|codex>");
   }
 
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  const installerEntry = path.join(
-    currentDir,
-    "..",
-    "..",
-    "..",
+  const installerEntry = resolveSupportAsset(
     "scripts",
     "installers",
     "index.js",
@@ -146,12 +165,7 @@ export const plugin: CommandHandler = async (ctx) => {
     throw new Error("Usage: plugin validate [--require-runtime]");
   }
 
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  const validatorEntry = path.join(
-    currentDir,
-    "..",
-    "..",
-    "..",
+  const validatorEntry = resolveSupportAsset(
     "scripts",
     "validate-codex-plugin.mjs",
   );
