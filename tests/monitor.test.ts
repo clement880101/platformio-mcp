@@ -15,17 +15,22 @@ import path from "node:path";
 // modules below are imported, because paths.ts resolves the data dir at import
 // time. Otherwise these tests write and delete real claim files and PID
 // registries that a live monitor depends on.
+const PREVIOUS_DATA_DIR = process.env.PIO_MCP_DATA_DIR;
 const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "pio-monitor-"));
 process.env.PIO_MCP_DATA_DIR = TEST_DATA_DIR;
 
-afterAll(() =>
-  fs.rmSync(TEST_DATA_DIR, {
-    recursive: true,
-    force: true,
-    maxRetries: 10,
-    retryDelay: 100,
-  }),
-);
+// Vitest can reuse a Windows worker for another file whose cached paths still
+// point here. Removing the directory in afterAll races those final writes, so
+// clean it only when the worker can no longer create files.
+process.once("exit", () => {
+  try {
+    fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
+  } catch {}
+});
+afterAll(() => {
+  if (PREVIOUS_DATA_DIR === undefined) delete process.env.PIO_MCP_DATA_DIR;
+  else process.env.PIO_MCP_DATA_DIR = PREVIOUS_DATA_DIR;
+});
 
 // killPioMonitorByPort verifies the monitor's process identity before and
 // after a real SIGKILL, so driving it through a genuinely spawned-and-killed
